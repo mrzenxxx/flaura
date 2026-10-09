@@ -95,8 +95,7 @@ public struct SceneLayout: Sendable {
     }
 
     static func angle(of v: SIMD2<Float>) -> Float {
-        let a = atan2f(v.y, v.x) / (2 * .pi) + 0.25
-        return a - a.rounded(.down)
+        wrapUnit(atan2f(v.y, v.x) / (2 * .pi) + 0.25)
     }
 
     static func hash(_ a: Int, _ b: Int) -> Float {

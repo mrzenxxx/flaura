@@ -63,8 +63,7 @@ public struct DeviceLayout: Hashable, Sendable {
     public static func perimeter(count: Int, size: SIMD2<Float>, start: Float = 0, clockwise: Bool = true) -> DeviceLayout {
         let leds = (0..<count).map { slot -> LEDPoint in
             let step = (Float(slot) + 0.5) / Float(count)
-            var p = clockwise ? start + step : start - step
-            p -= p.rounded(.down)
+            let p = wrapUnit(clockwise ? start + step : start - step)
             return LEDPoint(slot: slot, position: DeviceLayout.pointOnPerimeter(p, size: size), perimeter: p)
         }
         return DeviceLayout(size: size, frameLength: count, leds: leds)

@@ -101,7 +101,6 @@ enum RazerLayouts {
             (abs(p.x), 2 * size.x + size.y + (size.y - p.y)),       // left edge, bottom → top
         ]
         let along = distances.min { $0.0 < $1.0 }!.1
-        let t = along / total
-        return t - t.rounded(.down)
+        return wrapUnit(along / total)
     }
 }

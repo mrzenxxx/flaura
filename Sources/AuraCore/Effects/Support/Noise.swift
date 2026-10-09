@@ -74,3 +74,10 @@ func smoothstep(_ edge0: Float, _ edge1: Float, _ x: Float) -> Float {
 func lerp(_ a: Float, _ b: Float, _ t: Float) -> Float {
     a + (b - a) * t
 }
+
+/// Wraps any value into 0..<1. Plain `x - floor(x)` can round up to exactly 1 for tiny negatives.
+@inlinable
+public func wrapUnit(_ x: Float) -> Float {
+    let f = x - x.rounded(.down)
+    return f >= 1 ? 0 : f
+}
