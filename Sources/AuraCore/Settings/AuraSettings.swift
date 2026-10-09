@@ -45,6 +45,10 @@ extension DeviceSettings: Codable {
 public struct AuraSettings: Hashable, Sendable {
     public var enabled: Bool
     public var palette: Palette
+    /// Palette colors slowly rotate into each other on top of any effect.
+    public var paletteFlow: Bool
+    /// 0…1, how fast the flow rotates.
+    public var paletteFlowSpeed: Float
     public var effect: EffectSettings
     public var reactive: ReactiveSettings
     /// Master brightness, 0…1.
@@ -59,12 +63,15 @@ public struct AuraSettings: Hashable, Sendable {
     /// Keyed by `LightingDevice.id`.
     public var devices: [String: DeviceSettings]
 
-    public init(enabled: Bool = true, palette: Palette = .flame, effect: EffectSettings = EffectSettings(),
+    public init(enabled: Bool = true, palette: Palette = .flame, paletteFlow: Bool = false, paletteFlowSpeed: Float = 0.4,
+                effect: EffectSettings = EffectSettings(),
                 reactive: ReactiveSettings = ReactiveSettings(), brightness: Float = 0.85, gamma: Float = 1.8,
                 framesPerSecond: Int = 30, dimWhenIdle: Bool = true,
                 shutdownBehaviour: ShutdownBehaviour = .staticColor, devices: [String: DeviceSettings] = [:]) {
         self.enabled = enabled
         self.palette = palette
+        self.paletteFlow = paletteFlow
+        self.paletteFlowSpeed = paletteFlowSpeed
         self.effect = effect
         self.reactive = reactive
         self.brightness = brightness
@@ -84,7 +91,7 @@ public struct AuraSettings: Hashable, Sendable {
 
 extension AuraSettings: Codable {
     enum CodingKeys: String, CodingKey {
-        case enabled, palette, effect, reactive, brightness, gamma, framesPerSecond, dimWhenIdle, shutdownBehaviour, devices
+        case enabled, palette, paletteFlow, paletteFlowSpeed, effect, reactive, brightness, gamma, framesPerSecond, dimWhenIdle, shutdownBehaviour, devices
     }
 
     public init(from decoder: Decoder) throws {
@@ -92,6 +99,8 @@ extension AuraSettings: Codable {
         let d = AuraSettings()
         enabled = (try? c.decode(Bool.self, forKey: .enabled)) ?? d.enabled
         palette = (try? c.decode(Palette.self, forKey: .palette)) ?? d.palette
+        paletteFlow = (try? c.decode(Bool.self, forKey: .paletteFlow)) ?? d.paletteFlow
+        paletteFlowSpeed = (try? c.decode(Float.self, forKey: .paletteFlowSpeed)) ?? d.paletteFlowSpeed
         effect = (try? c.decode(EffectSettings.self, forKey: .effect)) ?? d.effect
         reactive = (try? c.decode(ReactiveSettings.self, forKey: .reactive)) ?? d.reactive
         brightness = (try? c.decode(Float.self, forKey: .brightness)) ?? d.brightness

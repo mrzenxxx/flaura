@@ -1,0 +1,263 @@
+import AuraCore
+import SwiftUI
+
+/// The menu bar panel: everything needed day to day, in one scrollable column.
+struct PanelView: View {
+    @ObservedObject var model: AppModel
+    let openSettings: () -> Void
+    let quit: () -> Void
+
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 5)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            header
+            devices
+            effects
+            palette
+            parameters
+            reactions
+            footer
+        }
+        .padding(16)
+        .frame(width: 372)
+    }
+
+    // MARK: Header
+
+    private var header: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(model.settings.palette.gradient)
+                Text("Aura")
+                    .font(.system(size: 17, weight: .semibold))
+                Spacer()
+                Toggle("", isOn: $model.settings.enabled)
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .controlSize(.small)
+            }
+            HStack(spacing: 8) {
+                Image(systemName: "sun.min").font(.system(size: 11)).foregroundStyle(.secondary)
+                Slider(value: Binding(get: { Double(model.settings.brightness) },
+                                      set: { model.settings.brightness = Float($0) }), in: 0.05...1)
+                    .controlSize(.small)
+                Image(systemName: "sun.max.fill").font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var devices: some View {
+        Group {
+            if model.devices.isEmpty {
+                Label("Устройства не найдены", systemImage: "cable.connector.slash")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            } else {
+                HStack(spacing: 6) {
+                    ForEach(model.devices, id: \.id) { info in
+                        DeviceChip(info: info, health: model.health[info.id], enabled: model.settings.device(info.id).enabled)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Effects
+
+    private var effects: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionTitle("Aura Flame")
+            LazyVGrid(columns: columns, spacing: 6) {
+                ForEach(EffectKind.flames) { tile($0) }
+            }
+            SectionTitle("Эффекты")
+                .padding(.top, 2)
+            LazyVGrid(columns: columns, spacing: 6) {
+                ForEach(EffectKind.classics) { tile($0) }
+            }
+        }
+    }
+
+    private func tile(_ kind: EffectKind) -> some View {
+        EffectTile(kind: kind, selected: model.settings.effect.kind == kind, palette: model.settings.palette) {
+            model.settings.effect.kind = kind
+        }
+    }
+
+    // MARK: Palette
+
+    private var palette: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionTitle("Палитра · \(model.settings.palette.name)")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(Palette.presets, id: \.name) { preset in
+                        PaletteSwatch(palette: preset, selected: model.settings.palette.colors == preset.colors) {
+                            model.settings.palette = preset
+                        }
+                    }
+                }
+            }
+            HStack(spacing: 8) {
+                ForEach(model.settings.palette.colors.indices, id: \.self) { index in
+                    ColorPicker("", selection: colorBinding(index), supportsOpacity: false)
+                        .labelsHidden()
+                }
+                Button {
+                    var p = model.settings.palette
+                    p.colors.append(p.colors.last ?? .white)
+                    p.name = "Своя"
+                    model.settings.palette = p
+                } label: { Image(systemName: "plus") }
+                    .disabled(model.settings.palette.colors.count >= Palette.maxColors)
+                    .help("Добавить цвет")
+                Button {
+                    var p = model.settings.palette
+                    p.colors.removeLast()
+                    p.name = "Своя"
+                    model.settings.palette = p
+                } label: { Image(systemName: "minus") }
+                    .disabled(model.settings.palette.colors.count <= 1)
+                    .help("Убрать цвет")
+                Spacer()
+            }
+            .buttonStyle(.borderless)
+            RoundedRectangle(cornerRadius: 4)
+                .fill(model.settings.palette.gradient)
+                .frame(height: 6)
+            Toggle("Перетекание цветов", isOn: $model.settings.paletteFlow)
+                .font(.system(size: 12))
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .help("Цвета палитры плавно перетекают друг в друга поверх любого эффекта")
+            if model.settings.paletteFlow {
+                CommitSlider(title: "Скорость перелива", value: model.settings.paletteFlowSpeed) {
+                    model.settings.paletteFlowSpeed = $0
+                }
+            }
+        }
+    }
+
+    private func colorBinding(_ index: Int) -> Binding<Color> {
+        Binding(
+            get: {
+                let colors = model.settings.palette.colors
+                return index < colors.count ? colors[index].color : .white
+            },
+            set: { color in
+                var p = model.settings.palette
+                guard index < p.colors.count else { return }
+                p.colors[index] = RGB(color)
+                p.name = "Своя"
+                model.settings.palette = p
+            }
+        )
+    }
+
+    // MARK: Parameters
+
+    @ViewBuilder
+    private var parameters: some View {
+        let kind = model.settings.effect.kind
+        if kind.usesSpeed || kind.usesIntensity || kind.usesDirection || kind.usesSpan {
+            VStack(alignment: .leading, spacing: 8) {
+                SectionTitle("\(kind.title) · \(kind.subtitle)")
+                if kind.usesSpeed {
+                    CommitSlider(title: "Скорость", value: model.settings.effect.speed) { model.settings.effect.speed = $0 }
+                }
+                if kind.usesIntensity {
+                    CommitSlider(title: kind.intensityTitle, value: model.settings.effect.intensity) {
+                        model.settings.effect.intensity = $0
+                    }
+                }
+                if kind.usesDirection {
+                    Picker("Направление", selection: $model.settings.effect.direction) {
+                        ForEach(Direction.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .font(.system(size: 12))
+                }
+                HStack(spacing: 16) {
+                    if kind.usesSpan {
+                        Toggle("На все устройства", isOn: $model.settings.effect.spanDevices)
+                            .help("Один эффект через весь стол вместо повтора на каждом устройстве")
+                    }
+                    if kind == .wave || kind == .wheel {
+                        Toggle("Радуга", isOn: $model.settings.effect.rainbow)
+                    }
+                }
+                .toggleStyle(.checkbox)
+                .font(.system(size: 12))
+            }
+        }
+    }
+
+    // MARK: Reactions
+
+    private var reactions: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionTitle("Реакции")
+            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
+                GridRow {
+                    Toggle("Волна от клавиш", isOn: $model.settings.reactive.ripple)
+                    Toggle("Вспышка клавиши", isOn: $model.settings.reactive.keyGlow)
+                }
+                GridRow {
+                    Toggle("Импульс от клика", isOn: $model.settings.reactive.clickPulse)
+                    Toggle("Клавиши раздувают огонь", isOn: $model.settings.reactive.stoke)
+                }
+            }
+            .toggleStyle(.checkbox)
+            .font(.system(size: 12))
+            if model.settings.reactive.needsInput {
+                CommitSlider(title: "Длительность", value: model.settings.reactive.duration) {
+                    model.settings.reactive.duration = $0
+                } format: { value in
+                    var reactive = ReactiveSettings()
+                    reactive.duration = value
+                    return String(format: "%.1f с", reactive.seconds)
+                }
+                HStack {
+                    Picker("Цвет реакции", selection: $model.settings.reactive.colorMode) {
+                        ForEach(ReactiveColorMode.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .font(.system(size: 12))
+                }
+                if !model.inputAccess {
+                    permissionBanner
+                }
+            }
+        }
+    }
+
+    private var permissionBanner: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "hand.raised.fill").foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Чтобы подсветка реагировала на клавиши и клики, нужно разрешение «Мониторинг ввода». Aura только слушает нажатия и никуда их не передаёт.")
+                    .font(.system(size: 11))
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Разрешить…") { model.requestInputAccess() }
+                    .controlSize(.small)
+            }
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.1)))
+    }
+
+    // MARK: Footer
+
+    private var footer: some View {
+        HStack {
+            Button("Настройки…", action: openSettings)
+            Spacer()
+            Button("Выйти", action: quit)
+        }
+        .buttonStyle(.borderless)
+        .font(.system(size: 12))
+        .padding(.top, 2)
+    }
+}

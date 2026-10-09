@@ -82,6 +82,16 @@ class FlameGridEffect: Effect {
     /// Advances the simulation by one fixed step.
     func step() {}
 
+    /// Runs the simulation for a few seconds up front so a new flame starts already burning
+    /// (switching effects or tweaking a slider would otherwise restart from a cold grid).
+    func warmUp(seconds: Float = 3) {
+        for _ in 0..<Int(seconds * stepsPerSecond) {
+            simulatedTime += 1 / stepsPerSecond
+            step()
+        }
+        grid.display = grid.heat
+    }
+
     /// Converts heat to a color; Inferno overrides this to add a white-hot core.
     func color(heat: Float, palette: PaletteLUT) -> RGB {
         palette.ramp(heat)

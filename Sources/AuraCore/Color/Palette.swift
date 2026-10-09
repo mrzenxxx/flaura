@@ -83,6 +83,14 @@ public struct PaletteLUT: Sendable {
         brightest = colors.max(by: { $0.luma < $1.luma }) ?? .white
     }
 
+    /// The palette with every color shifted `phase` of the way around its own loop, so colors
+    /// glide into their neighbours. `phase` 1 is a full turn.
+    public func rotated(by phase: Float) -> PaletteLUT {
+        let n = Float(colors.count)
+        let shifted = colors.indices.map { loop(Float($0) / n + phase) }
+        return PaletteLUT(Palette(name: "", colors: shifted))
+    }
+
     /// `t` wraps around, so callers can feed `time * speed + position` directly.
     @inlinable
     public func loop(_ t: Float) -> RGB {

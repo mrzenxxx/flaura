@@ -16,6 +16,9 @@ public final class RenderEngine: @unchecked Sendable {
     private var output = OutputStage(gamma: 1.8)
     private var settings = AuraSettings()
     private var palette = PaletteLUT(.flame)
+    /// The palette as drawn this frame: `palette`, or a rotated copy while palette flow is on.
+    private var framePalette = PaletteLUT(.flame)
+    private var flowUpdatedAt: Double = -1
     private var devices: [any LightingDevice] = []
     private var sinks: [DeviceSink] = []
     private var suspended = false
@@ -108,7 +111,12 @@ public final class RenderEngine: @unchecked Sendable {
         settings = new
         if new.palette != old.palette {
             palette = PaletteLUT(new.palette)
+            framePalette = palette
+            flowUpdatedAt = -1
             beginCrossfade()
+        }
+        if new.paletteFlow != old.paletteFlow && !new.paletteFlow {
+            framePalette = palette
         }
         if new.gamma != old.gamma {
             output = OutputStage(gamma: new.gamma)
@@ -168,7 +176,8 @@ public final class RenderEngine: @unchecked Sendable {
     private var fading: Bool { fadeStart >= 0 }
 
     private func updateTimer() {
-        let shouldRun = settings.enabled && !suspended && !sinks.isEmpty && (dirty || fading || compositor.isAnimated)
+        let shouldRun = settings.enabled && !suspended && !sinks.isEmpty
+            && (dirty || fading || settings.paletteFlow || compositor.isAnimated)
         let interval = 1 / Double(min(max(settings.framesPerSecond, AuraSettings.fpsRange.lowerBound), AuraSettings.fpsRange.upperBound))
         if shouldRun {
             if timer == nil || interval != timerInterval {
@@ -198,6 +207,7 @@ public final class RenderEngine: @unchecked Sendable {
         let dt = Float(min(max(Double(nowNanos &- lastTick) / 1e9, 0), 0.1))
         lastTick = nowNanos
         let time = Double(nowNanos - start) / 1e9
+        updateFlow(time: time)
         let context = context(time: time, dt: dt)
         compositor.render(context)
 
@@ -231,6 +241,15 @@ public final class RenderEngine: @unchecked Sendable {
         }
     }
 
+    /// Rotating the palette rebuilds its tables; ~15 times a second is visually continuous.
+    private func updateFlow(time: Double) {
+        guard settings.paletteFlow, time - flowUpdatedAt >= 1.0 / 15 || flowUpdatedAt < 0 else { return }
+        flowUpdatedAt = time
+        let secondsPerColor = Double(rate(settings.paletteFlowSpeed, 14, 1.5))
+        let turn = time / (secondsPerColor * Double(palette.colors.count))
+        framePalette = palette.rotated(by: Float(turn - turn.rounded(.down)))
+    }
+
     private func sendBlack() {
         for sink in sinks {
             sink.submit([RGB8](repeating: .black, count: sink.device.layout.frameLength))
@@ -242,6 +261,6 @@ public final class RenderEngine: @unchecked Sendable {
     }
 
     private func context(time: Double, dt: Float) -> FrameContext {
-        FrameContext(time: time, dt: dt, palette: palette, scene: compositor.scene)
+        FrameContext(time: time, dt: dt, palette: framePalette, scene: compositor.scene)
     }
 }

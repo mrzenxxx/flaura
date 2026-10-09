@@ -2,6 +2,12 @@ import Foundation
 
 public enum EffectFactory {
     public static func make(_ settings: EffectSettings) -> Effect {
+        let effect = makeCold(settings)
+        (effect as? FlameGridEffect)?.warmUp()
+        return effect
+    }
+
+    private static func makeCold(_ settings: EffectSettings) -> Effect {
         switch settings.kind {
         case .off: OffEffect()
         case .staticColor: StaticEffect(settings: settings)
