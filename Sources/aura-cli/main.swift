@@ -144,6 +144,64 @@ case "run":
     print(String(format: "CPU: %.1f%% of one core (%.2fs CPU over %.1fs)", cpu / wall * 100, cpu, wall))
     engine.shutdown()
 
+case "profile":
+    // Offline tuning aid. Per device: mean perceived level, "motion" (how much each LED moves over
+    // time, wanted) and "jitter" (frame-to-frame jumps, unwanted). Keyboard rows listed top→bottom.
+    let kinds = arguments.dropFirst().first.flatMap(EffectKind.init(rawValue:)).map { [$0] } ?? EffectKind.flames
+    let speed = Float(arguments.dropFirst(2).first ?? "") ?? 0.5
+    let intensity = Float(arguments.dropFirst(3).first ?? "") ?? 0.5
+    let descriptors = RazerCatalog.builtIn
+    let entries = descriptors.map { (id: String($0.productID), kind: $0.kind, size: $0.makeLayout().size) }
+    let origins = DeskArrangement.origins(for: entries)
+    let scene = SceneLayout(devices: descriptors.map {
+        SceneDevice(id: String($0.productID), kind: $0.kind, layout: $0.makeLayout(), origin: origins[String($0.productID)]!)
+    })
+    let gamma = AuraSettings().gamma
+    let lut = PaletteLUT(.flame)
+    func level(_ c: RGB) -> Float {
+        0.2126 * powf(c.r, gamma) + 0.7152 * powf(c.g, gamma) + 0.0722 * powf(c.b, gamma)
+    }
+    for kind in kinds {
+        let effect = EffectFactory.make(EffectSettings(kind: kind, speed: speed, intensity: intensity))
+        let n = scene.points.count
+        var output = [RGB](repeating: .black, count: n)
+        var previous = [Float](repeating: 0, count: n)
+        var sum = [Float](repeating: 0, count: n)
+        var sumSq = [Float](repeating: 0, count: n)
+        var jitter = [Float](repeating: 0, count: n)
+        let frames = 300
+        for frame in 0..<frames {
+            effect.render(FrameContext(time: Double(frame) / 30, dt: 1.0 / 30, palette: lut, scene: scene), points: scene.points, into: &output)
+            for i in 0..<n {
+                let l = level(output[i])
+                sum[i] += l
+                sumSq[i] += l * l
+                if frame > 0 { jitter[i] += abs(l - previous[i]) }
+                previous[i] = l
+            }
+        }
+        func stats(_ indices: [Int]) -> (mean: Float, motion: Float, jitter: Float) {
+            var m: Float = 0, sd: Float = 0, j: Float = 0
+            for i in indices {
+                let mean = sum[i] / Float(frames)
+                m += mean
+                sd += sqrtf(max(0, sumSq[i] / Float(frames) - mean * mean))
+                j += jitter[i] / Float(frames - 1)
+            }
+            let c = Float(indices.count)
+            return (m / c, sd / c, j / c)
+        }
+        let keyboard = scene.deviceRanges[0]
+        let rows = (0..<6).map { row in
+            String(format: "%.2f", stats(keyboard.filter { scene.points[$0].slot / 22 == row }).mean)
+        }.joined(separator: " ")
+        print("\(kind.rawValue)  rows \(rows)")
+        for (d, range) in scene.deviceRanges.enumerated() {
+            let s = stats(Array(range))
+            print(String(format: "    %-9@ level %.2f  motion %.3f  jitter %.4f", scene.devices[d].kind.rawValue, s.mean, s.motion, s.jitter))
+        }
+    }
+
 case "restore":
     let behaviour: ShutdownBehaviour
     switch arguments.dropFirst().first {

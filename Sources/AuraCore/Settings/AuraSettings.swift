@@ -65,7 +65,7 @@ public struct AuraSettings: Hashable, Sendable {
 
     public init(enabled: Bool = true, palette: Palette = .flame, paletteFlow: Bool = false, paletteFlowSpeed: Float = 0.4,
                 effect: EffectSettings = EffectSettings(),
-                reactive: ReactiveSettings = ReactiveSettings(), brightness: Float = 0.85, gamma: Float = 1.8,
+                reactive: ReactiveSettings = ReactiveSettings(), brightness: Float = 1, gamma: Float = 1.4,
                 framesPerSecond: Int = 30, dimWhenIdle: Bool = true,
                 shutdownBehaviour: ShutdownBehaviour = .staticColor, devices: [String: DeviceSettings] = [:]) {
         self.enabled = enabled
@@ -87,11 +87,14 @@ public struct AuraSettings: Hashable, Sendable {
     }
 
     public static let fpsRange = 15...60
+
+    /// Bumped when defaults change in a way saved files should pick up.
+    public static let currentVersion = 2
 }
 
 extension AuraSettings: Codable {
     enum CodingKeys: String, CodingKey {
-        case enabled, palette, paletteFlow, paletteFlowSpeed, effect, reactive, brightness, gamma, framesPerSecond, dimWhenIdle, shutdownBehaviour, devices
+        case version, enabled, palette, paletteFlow, paletteFlowSpeed, effect, reactive, brightness, gamma, framesPerSecond, dimWhenIdle, shutdownBehaviour, devices
     }
 
     public init(from decoder: Decoder) throws {
@@ -110,5 +113,29 @@ extension AuraSettings: Codable {
         dimWhenIdle = (try? c.decode(Bool.self, forKey: .dimWhenIdle)) ?? d.dimWhenIdle
         shutdownBehaviour = (try? c.decode(ShutdownBehaviour.self, forKey: .shutdownBehaviour)) ?? d.shutdownBehaviour
         devices = (try? c.decode([String: DeviceSettings].self, forKey: .devices)) ?? d.devices
+
+        // v1 files carry the old defaults (gamma 1.8, brightness 0.85), which made fire too dark.
+        let version = (try? c.decode(Int.self, forKey: .version)) ?? 1
+        if version < 2 {
+            if abs(gamma - 1.8) < 0.001 { gamma = d.gamma }
+            if abs(brightness - 0.85) < 0.001 { brightness = d.brightness }
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(AuraSettings.currentVersion, forKey: .version)
+        try c.encode(enabled, forKey: .enabled)
+        try c.encode(palette, forKey: .palette)
+        try c.encode(paletteFlow, forKey: .paletteFlow)
+        try c.encode(paletteFlowSpeed, forKey: .paletteFlowSpeed)
+        try c.encode(effect, forKey: .effect)
+        try c.encode(reactive, forKey: .reactive)
+        try c.encode(brightness, forKey: .brightness)
+        try c.encode(gamma, forKey: .gamma)
+        try c.encode(framesPerSecond, forKey: .framesPerSecond)
+        try c.encode(dimWhenIdle, forKey: .dimWhenIdle)
+        try c.encode(shutdownBehaviour, forKey: .shutdownBehaviour)
+        try c.encode(devices, forKey: .devices)
     }
 }

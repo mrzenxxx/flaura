@@ -3,33 +3,45 @@ import Foundation
 // The Aura Flame family. All variants map heat through the palette's ramp
 // (black → first color → … → last color), so any palette turns into its own kind of fire.
 
-/// Classic hearth fire: Fire2012-style heat diffusion on a 2D grid with lateral mixing.
+/// Classic hearth fire: a rolling fuel bed (smooth noise, not random pops) feeding Fire2012-style
+/// rising heat with lateral mixing, so flames lick upwards in coherent tongues.
 final class HearthFlame: FlameGridEffect {
     private let cooling: Float
-    private let sparkChance: Float
 
     init(settings: EffectSettings) {
-        cooling = lerp(0.13, 0.05, settings.intensity)
-        sparkChance = 0.22
-        super.init(settings: settings, seed: 0x4EA27, slowSteps: 14, fastSteps: 55)
+        cooling = lerp(0.1, 0.035, settings.intensity)
+        super.init(settings: settings, seed: 0x4EA27, slowSteps: 12, fastSteps: 45)
     }
 
     override func step() {
         let w = FlameGrid.width
         let h = FlameGrid.height
-        for i in grid.heat.indices {
-            grid.heat[i] = max(0, grid.heat[i] - rng.unit() * cooling)
+        let t = simulatedTime
+        for x in 0..<w {
+            let n = Noise.fbm(Float(x) * 0.18, t * 1.2, octaves: 2) * 0.5 + 0.5
+            let fuel = min(1, 0.3 + 0.85 * n + rng.float(-0.05...0.05))
+            grid[x, 0] = max(grid[x, 0] * 0.5, fuel)
+            grid[x, 1] = max(grid[x, 1], grid[x, 0] * 0.9)
+        }
+        // Cool pockets drift upwards through the heat and carve it into tongues of flame.
+        for y in 2..<h {
+            for x in 0..<w {
+                let pocket = Noise.simplex(Float(x) * 0.3, Float(y) * 0.13 - t * 1.4) * 0.5 + 0.5
+                let loss = cooling * (0.1 + 1.9 * pocket * pocket) * (0.8 + 0.4 * rng.unit())
+                grid[x, y] = max(0, grid[x, y] - loss)
+            }
         }
         for y in stride(from: h - 1, through: 2, by: -1) {
             for x in 0..<w {
                 let rise = (grid[x, y - 1] + 2 * grid[x, y - 2]) / 3
                 let side = (grid[x - 1, y - 1] + grid[x + 1, y - 1]) * 0.5
-                grid[x, y] = rise * 0.82 + side * 0.18
+                grid[x, y] = rise * 0.88 + side * 0.12
             }
         }
-        for x in 0..<w where rng.chance(sparkChance) {
-            let y = rng.int(below: 3)
-            grid[x, y] = min(1, grid[x, y] + rng.float(0.6...1))
+        // An occasional flare keeps it alive without strobing.
+        if rng.chance(0.2) {
+            let x = rng.int(below: w)
+            for dx in -1...1 { grid[x + dx, 1] = min(1, grid[x + dx, 1] + 0.25) }
         }
     }
 }
@@ -40,7 +52,7 @@ final class InfernoFlame: FlameGridEffect {
     private var source: [Float] = Array(repeating: 1, count: FlameGrid.width)
 
     init(settings: EffectSettings) {
-        decay = lerp(0.12, 0.045, settings.intensity)
+        decay = lerp(0.07, 0.028, settings.intensity)
         super.init(settings: settings, seed: 0x1F3E0, slowSteps: 20, fastSteps: 70)
     }
 
@@ -51,7 +63,7 @@ final class InfernoFlame: FlameGridEffect {
         for x in 0..<w {
             // The fire bed breathes slowly so it never reads as a flat band.
             let n = Noise.simplex(Float(x) * 0.18, t * 0.7)
-            source[x] = min(1, 0.82 + 0.25 * n)
+            source[x] = min(1, 0.9 + 0.2 * n)
             grid[x, 0] = source[x]
         }
         for y in 1..<h {
@@ -98,15 +110,15 @@ final class EmbersFlame: FlameGridEffect {
 
         // Low licking flames: Fire2012 with strong cooling so they stay near the bottom.
         for i in flame.heat.indices {
-            flame.heat[i] = max(0, flame.heat[i] - rng.unit() * 0.2)
+            flame.heat[i] = max(0, flame.heat[i] - rng.unit() * 0.13)
         }
         for y in stride(from: h - 1, through: 2, by: -1) {
             for x in 0..<w {
                 flame[x, y] = (flame[x, y - 1] + 2 * flame[x, y - 2]) / 3
             }
         }
-        for x in 0..<w where rng.chance(0.12) {
-            flame[x, rng.int(below: 2)] = rng.float(0.45...0.8)
+        for x in 0..<w where rng.chance(0.1) {
+            flame[x, rng.int(below: 2)] = rng.float(0.5...0.85)
         }
 
         if rng.chance(sparkRate) {
@@ -115,9 +127,9 @@ final class EmbersFlame: FlameGridEffect {
         }
 
         for x in 0..<w {
-            let bed = 0.42 + 0.3 * Noise.fbm(Float(x) * 0.22, t * 0.35, octaves: 2)
+            let bed = 0.62 + 0.3 * Noise.fbm(Float(x) * 0.22, t * 0.35, octaves: 2)
             for y in 0..<h {
-                let falloff = expf(-Float(y) * 0.55)
+                let falloff = expf(-Float(y) * 0.1)
                 grid[x, y] = max(bed * falloff, flame[x, y] * 0.85)
             }
         }
@@ -148,8 +160,8 @@ final class WispFlame: Effect {
 
     init(settings: EffectSettings) {
         self.settings = settings
-        speed = rate(settings.speed, 0.35, 2.2)
-        height = lerp(0.55, 1.15, settings.intensity)
+        speed = rate(settings.speed, 0.25, 1.4)
+        height = lerp(0.85, 1.6, settings.intensity)
     }
 
     func render(_ context: FrameContext, points: [ScenePoint], into output: inout [RGB]) {
@@ -162,10 +174,10 @@ final class WispFlame: Effect {
             let reach = settings.spanDevices ? 1 : FlameGridEffect.reach(for: kind)
             let x = (c.x + phase) * 3.2
             let up = (1 - c.y) * reach
-            let warp = Noise.simplex(x * 0.55 + t * 0.25, up * 1.4 - t * 0.9)
-            let n = Noise.fbm(x + warp * 0.8, up * 2.4 - t * 1.6, octaves: 3) * 0.5 + 0.5
+            let warp = Noise.simplex(x * 0.55 + t * 0.2, up * 1.2 - t * 0.5)
+            let n = Noise.fbm(x + warp * 0.8, up * 2 - t * 0.9, octaves: 2) * 0.5 + 0.5
             let shape = max(0, 1 - up / height)
-            var heat = n * (0.35 + 0.95 * shape) * shape * 1.25
+            var heat = powf(shape, 0.8) * (0.4 + 0.8 * n)
             for boost in boosts where boost.device == point.device || settings.spanDevices {
                 let age = Float(context.time - boost.time)
                 let du = abs(c.x - boost.u)
@@ -186,7 +198,7 @@ final class WildfireFlame: FlameGridEffect {
     private let cooling: Float
 
     init(settings: EffectSettings) {
-        cooling = lerp(0.12, 0.05, settings.intensity)
+        cooling = lerp(0.085, 0.035, settings.intensity)
         super.init(settings: settings, seed: 0x3D7F1, slowSteps: 16, fastSteps: 60)
     }
 
@@ -197,8 +209,8 @@ final class WildfireFlame: FlameGridEffect {
         let wind = Noise.fbm(t * 0.25, 3.7, octaves: 2) * 1.6
         let front = (Noise.simplex(t * 0.08, 9.1) * 0.5 + 0.5) * Float(w) * 1.5
 
-        for i in grid.heat.indices {
-            grid.heat[i] = max(0, grid.heat[i] - rng.unit() * cooling)
+        for i in (2 * w)..<grid.heat.count {
+            grid.heat[i] = max(0, grid.heat[i] - cooling * (0.5 + rng.unit()))
         }
         for y in stride(from: h - 1, through: 2, by: -1) {
             // Higher rows are pushed further by the wind, so flames lean and curl.
@@ -214,11 +226,11 @@ final class WildfireFlame: FlameGridEffect {
         for x in 0..<w {
             var d = abs(Float(x) - front.truncatingRemainder(dividingBy: Float(w)))
             d = min(d, Float(w) - d)
-            let chance = 0.08 + 0.55 * expf(-d * d / 40)
-            if rng.chance(chance) {
-                let y = rng.int(below: 3)
-                grid[x, y] = min(1, grid[x, y] + rng.float(0.55...1))
-            }
+            let near = expf(-d * d / 60)
+            let n = Noise.fbm(Float(x) * 0.25, t * 1.4, octaves: 2) * 0.5 + 0.5
+            let fuel = (0.3 + 0.7 * near) * (0.55 + 0.6 * n)
+            grid[x, 0] = max(grid[x, 0] * 0.5, min(1, fuel))
+            grid[x, 1] = max(grid[x, 1], grid[x, 0] * 0.9)
         }
     }
 }

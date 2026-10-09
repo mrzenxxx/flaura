@@ -27,7 +27,7 @@ struct FlameGrid {
         set { heat[FlameGrid.index(x, y)] = newValue }
     }
 
-    mutating func ease(dt: Float, rate: Float = 14) {
+    mutating func ease(dt: Float, rate: Float) {
         let k = min(1, dt * rate)
         for i in heat.indices {
             display[i] += (heat[i] - display[i]) * k
@@ -50,6 +50,15 @@ struct FlameGrid {
         return a + (b - a) * fy
     }
 
+    /// Box-filtered sample over an LED's footprint: the centre plus four taps `radius` cells away.
+    /// Point sampling a coarse grid aliases into flicker, especially on sparse LEDs (mouse, mat).
+    func sample(_ gx: Float, _ gy: Float, radius: Float) -> Float {
+        guard radius > 0 else { return sample(gx, gy) }
+        let r = radius * 0.7071
+        return (sample(gx, gy) * 2 + sample(gx - r, gy - r) + sample(gx + r, gy - r)
+            + sample(gx - r, gy + r) + sample(gx + r, gy + r)) / 6
+    }
+
     /// Adds a burst of heat around column `gx` near the bottom (typing "stokes" the fire).
     mutating func stoke(at gx: Float, amount: Float) {
         let x = Int(gx.rounded())
@@ -70,6 +79,8 @@ class FlameGridEffect: Effect {
     var grid = FlameGrid()
     var rng: SplitMix64
     let stepsPerSecond: Float
+    /// How quickly displayed heat follows the simulation; lower is silkier.
+    let easeRate: Float
     private var accumulator: Float = 0
     var simulatedTime: Float = 0
 
@@ -77,6 +88,7 @@ class FlameGridEffect: Effect {
         self.settings = settings
         rng = SplitMix64(seed: seed)
         stepsPerSecond = rate(settings.speed, slowSteps, fastSteps)
+        easeRate = lerp(4, 9, settings.speed)
     }
 
     /// Advances the simulation by one fixed step.
@@ -107,10 +119,11 @@ class FlameGridEffect: Effect {
             steps += 1
         }
         if steps == 4 { accumulator = 0 }
-        grid.ease(dt: context.dt)
+        grid.ease(dt: context.dt, rate: easeRate)
         for (i, point) in points.enumerated() {
             let g = gridPosition(of: point, scene: context.scene)
-            output[i] = color(heat: grid.sample(g.x, g.y), palette: context.palette)
+            let kind = point.device < context.scene.devices.count ? context.scene.devices[point.device].kind : .other
+            output[i] = color(heat: grid.sample(g.x, g.y, radius: FlameGridEffect.footprint(for: kind)), palette: context.palette)
         }
     }
 
@@ -129,6 +142,15 @@ class FlameGridEffect: Effect {
         let gx = (c.x + phase) * Float(FlameGrid.width)
         let gy = (1 - c.y) * Float(FlameGrid.height - 1) * reach
         return SIMD2(gx, gy)
+    }
+
+    /// Sampling radius in grid cells: roughly the area one LED stands for.
+    static func footprint(for kind: DeviceKind) -> Float {
+        switch kind {
+        case .keyboard: 1
+        case .mouse: 2.5
+        default: 2
+        }
     }
 
     /// Vertical squeeze per device kind: a mouse is short, so it lives in the hot part of the fire.

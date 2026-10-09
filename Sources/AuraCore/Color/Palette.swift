@@ -79,7 +79,8 @@ public struct PaletteLUT: Sendable {
         self.colors = colors
         loopTable = PaletteLUT.table(stops: labs + [labs[0]], closed: true)
         gradientTable = PaletteLUT.table(stops: labs.count == 1 ? labs + labs : labs)
-        rampTable = PaletteLUT.table(stops: [OKLab(.black)] + labs)
+        // Black only occupies the first fifth, so even weak heat already glows in the first color.
+        rampTable = PaletteLUT.table(stops: [OKLab(.black)] + labs, firstSegment: 0.2)
         brightest = colors.max(by: { $0.luma < $1.luma }) ?? .white
     }
 
@@ -122,11 +123,16 @@ public struct PaletteLUT: Sendable {
 
     /// A closed table never reaches its last stop: index `size - 1` sits just before the
     /// wrap-around, so cycling through it has no duplicated seam.
-    private static func table(stops: [OKLab], closed: Bool = false) -> [RGB] {
+    private static func table(stops: [OKLab], closed: Bool = false, firstSegment: Float? = nil) -> [RGB] {
         let segments = stops.count - 1
         let span = Float(closed ? size : size - 1)
         return (0..<size).map { index in
-            let position = Float(index) / span * Float(segments)
+            var t = Float(index) / span
+            if let first = firstSegment, segments > 1 {
+                // Remap so stop 1 sits at `first` and the remaining stops share the rest evenly.
+                t = t < first ? t / first / Float(segments) : (1 + (t - first) / (1 - first) * Float(segments - 1)) / Float(segments)
+            }
+            let position = t * Float(segments)
             let segment = min(Int(position), segments - 1)
             let local = position - Float(segment)
             return OKLab.mix(stops[segment], stops[segment + 1], local).rgb
