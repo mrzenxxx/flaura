@@ -89,6 +89,7 @@ swift build --product aura-cli
 .build/debug/aura-cli run hearth 15 --typing   # эффект без UI + замер CPU
 .build/debug/aura-cli bench         # время записи кадра
 .build/debug/Aura --snapshot /tmp/aura-ui      # отрисовать UI в PNG
+.build/debug/Aura --selftest                   # смоук-тест AppModel: сотни случайных изменений настроек
 ```
 
 Спецификация и план лежат в `docs/superpowers/`.

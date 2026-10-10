@@ -18,7 +18,7 @@ final class AppModel: ObservableObject {
     @Published var loginItemError: String?
 
     let engine = RenderEngine()
-    private let store = SettingsStore()
+    private let store: SettingsStore
     private let registry: DeviceRegistry
     private var input: InputMonitor!
     private var power: PowerObserver!
@@ -26,8 +26,9 @@ final class AppModel: ObservableObject {
     private var accessPoll: Timer?
     private var accessPollDeadline = Date.distantPast
 
-    /// `live: false` builds the model without touching hardware or input (UI snapshots).
-    init(live: Bool = true) {
+    /// `live: false` builds the model without touching hardware or input (UI snapshots, self-test).
+    init(live: Bool = true, storeDirectory: URL? = nil) {
+        store = SettingsStore(directory: storeDirectory)
         settings = store.load()
         registry = DeviceRegistry(providers: DeviceRegistry.standardProviders { message in
             NSLog("Aura: %@", message)
