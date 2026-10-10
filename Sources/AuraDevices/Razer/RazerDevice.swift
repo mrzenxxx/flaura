@@ -74,7 +74,7 @@ public final class RazerDevice: LightingDevice, @unchecked Sendable {
             case .keep: break
             }
         }
-        if driverModeActive {
+        if driverModeActive && behaviour != .keep {
             try? send(RazerPacket.deviceMode(transactionID: tid, mode: 0x00))
             driverModeActive = false
         }

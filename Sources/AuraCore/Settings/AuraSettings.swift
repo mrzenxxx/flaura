@@ -25,7 +25,7 @@ extension DeviceSettings: Codable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         enabled = (try? c.decode(Bool.self, forKey: .enabled)) ?? true
-        gain = (try? c.decode(Float.self, forKey: .gain)) ?? 1
+        gain = unitClamped((try? c.decode(Float.self, forKey: .gain)) ?? 1, fallback: 1)
         effect = try? c.decode(EffectSettings.self, forKey: .effect)
         if let xy = try? c.decode([Float].self, forKey: .origin), xy.count == 2 {
             origin = SIMD2(xy[0], xy[1])
@@ -103,11 +103,12 @@ extension AuraSettings: Codable {
         enabled = (try? c.decode(Bool.self, forKey: .enabled)) ?? d.enabled
         palette = (try? c.decode(Palette.self, forKey: .palette)) ?? d.palette
         paletteFlow = (try? c.decode(Bool.self, forKey: .paletteFlow)) ?? d.paletteFlow
-        paletteFlowSpeed = (try? c.decode(Float.self, forKey: .paletteFlowSpeed)) ?? d.paletteFlowSpeed
+        paletteFlowSpeed = unitClamped((try? c.decode(Float.self, forKey: .paletteFlowSpeed)) ?? d.paletteFlowSpeed,
+                                       fallback: d.paletteFlowSpeed)
         effect = (try? c.decode(EffectSettings.self, forKey: .effect)) ?? d.effect
         reactive = (try? c.decode(ReactiveSettings.self, forKey: .reactive)) ?? d.reactive
-        brightness = (try? c.decode(Float.self, forKey: .brightness)) ?? d.brightness
-        gamma = (try? c.decode(Float.self, forKey: .gamma)) ?? d.gamma
+        brightness = unitClamped((try? c.decode(Float.self, forKey: .brightness)) ?? d.brightness, fallback: d.brightness)
+        gamma = unitClamped((try? c.decode(Float.self, forKey: .gamma)) ?? d.gamma, fallback: d.gamma, range: 1...2.6)
         let fps = (try? c.decode(Int.self, forKey: .framesPerSecond)) ?? d.framesPerSecond
         framesPerSecond = min(max(fps, AuraSettings.fpsRange.lowerBound), AuraSettings.fpsRange.upperBound)
         dimWhenIdle = (try? c.decode(Bool.self, forKey: .dimWhenIdle)) ?? d.dimWhenIdle

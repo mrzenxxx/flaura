@@ -63,6 +63,7 @@ struct CommitSlider: View {
     var format: (Float) -> String = { "\(Int(($0 * 100).rounded()))%" }
 
     @State private var draft: Float?
+    @State private var dragging = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -70,9 +71,13 @@ struct CommitSlider: View {
                 .font(.system(size: 12))
                 .frame(width: 112, alignment: .leading)
             Slider(
-                value: Binding(get: { Double(draft ?? value) }, set: { draft = Float($0) }),
+                value: Binding(get: { Double(draft ?? value) }, set: { newValue in
+                    // Mouse drags commit on release; keyboard and VoiceOver steps commit at once.
+                    if dragging { draft = Float(newValue) } else { commit(Float(newValue)) }
+                }),
                 in: 0...1
             ) { editing in
+                dragging = editing
                 if !editing, let draft {
                     commit(draft)
                     self.draft = nil

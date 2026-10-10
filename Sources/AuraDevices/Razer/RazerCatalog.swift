@@ -46,6 +46,16 @@ public struct RazerDeviceDescriptor: Codable, Sendable, Hashable {
         self.layoutStyle = layoutStyle
     }
 
+    /// Rejects descriptors that would index past a frame or overflow a packet field.
+    public var isValid: Bool {
+        rows > 0 && rows <= 255 && columns > 0 && columns <= RazerPacket.maxLEDsPerRow && !ledIDs.isEmpty
+            && makeLayoutIfSane()?.frameLength == rows * columns
+    }
+
+    private func makeLayoutIfSane() -> DeviceLayout? {
+        rows * columns <= 4096 ? makeLayout() : nil
+    }
+
     public func makeLayout() -> DeviceLayout {
         switch layoutStyle {
         case .keyboard: RazerLayouts.keyboard(rows: rows, columns: columns)
@@ -85,8 +95,7 @@ public enum RazerCatalog {
             let descriptors = (try? decoder.decode([RazerDeviceDescriptor].self, from: data))
                 ?? (try? decoder.decode(RazerDeviceDescriptor.self, from: data)).map { [$0] }
                 ?? []
-            for descriptor in descriptors where descriptor.rows > 0 && descriptor.columns > 0
-                && descriptor.columns <= RazerPacket.maxLEDsPerRow {
+            for descriptor in descriptors where descriptor.isValid {
                 result[descriptor.productID] = descriptor
             }
         }

@@ -67,19 +67,36 @@ func run(_ effect: Effect, scene: SceneLayout, palette: Palette = .flame, frames
         #expect(bottom > top * 1.5)
     }
 
-    @Test func stokingAddsHeatInTheKeysColumn() {
-        let settings = EffectSettings(kind: .hearth, speed: 0.5, intensity: 0.2)
+    @Test func stokingAddsHeatToTheGrid() {
+        let settings = EffectSettings(kind: .wildfire, speed: 0.5, intensity: 0.2)
+        let calm = WildfireFlame(settings: settings)
+        let stoked = WildfireFlame(settings: settings)
+        let key = scene.points[scene.deviceRanges[0].lowerBound + 4 * 22 + 6]
+        let context = FrameContext(time: 0, dt: 1.0 / 30, palette: PaletteLUT(.flame), scene: scene)
+        stoked.handle(.keyDown(keyCode: 0), point: key, context: context)
+        let column = Int(stoked.gridPosition(of: key, scene: scene).x.rounded())
+        let heatCalm = (0..<3).map { calm.grid[column, $0] }.reduce(0, +)
+        let heatStoked = (0..<3).map { stoked.grid[column, $0] }.reduce(0, +)
+        #expect(heatStoked > heatCalm + 0.5)
+    }
+
+    @Test func stokingRaisesHearthFlamesAboveTheKey() {
+        let settings = EffectSettings(kind: .hearth, intensity: 0.2)
         let calm = HearthFlame(settings: settings)
         let stoked = HearthFlame(settings: settings)
         let lut = PaletteLUT(.flame)
-        let key = scene.points[scene.deviceRanges[0].lowerBound + 4 * 22 + 6]
-        let context = FrameContext(time: 0, dt: 1.0 / 30, palette: lut, scene: scene)
-        stoked.handle(.keyDown(keyCode: 0), point: key, context: context)
-        let gx = stoked.gridPosition(of: key, scene: scene).x
-        let column = Int(gx.rounded())
-        let heatCalm = (0..<3).map { calm.grid[column, $0] }.reduce(0, +)
-        let heatStoked = (0..<3).map { stoked.grid[column, $0] }.reduce(0, +)
-        #expect(heatStoked > heatCalm + 1)
+        let keyIndex = scene.deviceRanges[0].lowerBound + 4 * 22 + 6
+        let context = FrameContext(time: 1, dt: 1.0 / 30, palette: lut, scene: scene)
+        stoked.handle(.keyDown(keyCode: 0), point: scene.points[keyIndex], context: context)
+        var a = [RGB](repeating: .black, count: scene.points.count)
+        var b = a
+        calm.render(context, points: scene.points, into: &a)
+        stoked.render(context, points: scene.points, into: &b)
+        // The keyboard column above the key (rows 0…3) gets hotter.
+        let column = (0..<4).map { scene.deviceRanges[0].lowerBound + $0 * 22 + 6 }
+        let calmHeat = column.map { a[$0].luma }.reduce(0, +)
+        let stokedHeat = column.map { b[$0].luma }.reduce(0, +)
+        #expect(stokedHeat > calmHeat + 0.2)
     }
 
     @Test func breathingReachesDarkAndBright() {

@@ -14,6 +14,8 @@ public final class RazerProvider: DeviceProvider, @unchecked Sendable {
     private var devices: [UInt64: RazerDevice] = [:]
     private var catalog: [UInt16: RazerDeviceDescriptor] = [:]
     private var onChange: (@Sendable ([any LightingDevice]) -> Void)?
+    /// IOKit holds a raw pointer to us while notifications are armed; retained until `stop()`.
+    private var retainedSelf: Unmanaged<RazerProvider>?
     private let log: @Sendable (String) -> Void
 
     public init(log: @escaping @Sendable (String) -> Void = { _ in }) {
@@ -31,7 +33,9 @@ public final class RazerProvider: DeviceProvider, @unchecked Sendable {
             }
             self.port = port
             IONotificationPortSetDispatchQueue(port, self.queue)
-            let context = Unmanaged.passUnretained(self).toOpaque()
+            let retained = Unmanaged.passRetained(self)
+            self.retainedSelf = retained
+            let context = retained.toOpaque()
 
             let added: IOServiceMatchingCallback = { refcon, iterator in
                 guard let refcon else { return }
@@ -61,6 +65,8 @@ public final class RazerProvider: DeviceProvider, @unchecked Sendable {
             port = nil
             devices.removeAll()
             onChange = nil
+            retainedSelf?.release()
+            retainedSelf = nil
         }
     }
 

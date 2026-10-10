@@ -3,46 +3,49 @@ import Foundation
 // The Aura Flame family. All variants map heat through the palette's ramp
 // (black → first color → … → last color), so any palette turns into its own kind of fire.
 
-/// Classic hearth fire: a rolling fuel bed (smooth noise, not random pops) feeding Fire2012-style
-/// rising heat with lateral mixing, so flames lick upwards in coherent tongues.
-final class HearthFlame: FlameGridEffect {
-    private let cooling: Float
+/// Classic hearth fire, drawn procedurally: a row of flame tongues whose heights rise and fall
+/// on smooth noise, with turbulence streaming upwards inside them. Every LED swings between hot
+/// and cool as tongues pass, but nothing jumps from one frame to the next.
+final class HearthFlame: Effect {
+    let isAnimated = true
+    private let settings: EffectSettings
+    private let speed: Float
+    private let height: Float
+    private var boosts: [(x: Float, device: Int, time: Double)] = []
 
     init(settings: EffectSettings) {
-        cooling = lerp(0.1, 0.035, settings.intensity)
-        super.init(settings: settings, seed: 0x4EA27, slowSteps: 12, fastSteps: 45)
+        self.settings = settings
+        speed = rate(settings.speed, 0.28, 1.6)
+        height = lerp(0.85, 1.7, settings.intensity)
     }
 
-    override func step() {
-        let w = FlameGrid.width
-        let h = FlameGrid.height
-        let t = simulatedTime
-        for x in 0..<w {
-            let n = Noise.fbm(Float(x) * 0.18, t * 1.2, octaves: 2) * 0.5 + 0.5
-            let fuel = min(1, 0.3 + 0.85 * n + rng.float(-0.05...0.05))
-            grid[x, 0] = max(grid[x, 0] * 0.5, fuel)
-            grid[x, 1] = max(grid[x, 1], grid[x, 0] * 0.9)
-        }
-        // Cool pockets drift upwards through the heat and carve it into tongues of flame.
-        for y in 2..<h {
-            for x in 0..<w {
-                let pocket = Noise.simplex(Float(x) * 0.3, Float(y) * 0.13 - t * 1.4) * 0.5 + 0.5
-                let loss = cooling * (0.1 + 1.9 * pocket * pocket) * (0.8 + 0.4 * rng.unit())
-                grid[x, y] = max(0, grid[x, y] - loss)
+    func render(_ context: FrameContext, points: [ScenePoint], into output: inout [RGB]) {
+        let t = Float(context.time.truncatingRemainder(dividingBy: 10_000)) * speed
+        boosts.removeAll { context.time - $0.time > 1.4 }
+        for (i, point) in points.enumerated() {
+            let f = FlameGridEffect.flameCoordinates(of: point, scene: context.scene, span: settings.spanDevices)
+            let x = f.x * 5
+            // Tongue height: a slow sway plus a quicker flicker of the tips.
+            var tongue = height * (0.55 + 0.5 * Noise.fbm(x * 0.8, t * 0.9, octaves: 2))
+            tongue += height * 0.18 * Noise.simplex(x * 2.1 + 7.3, t * 1.7)
+            for boost in boosts where boost.device == point.device || settings.spanDevices {
+                let dx = f.x - boost.x
+                let age = Float(context.time - boost.time)
+                tongue += 0.6 * expf(-dx * dx * 90) * max(0, 1 - age / 1.4)
             }
+            let turbulence = Noise.fbm(x * 1.7, f.up * 2.6 - t * 1.7, octaves: 2) * 0.5 + 0.5
+            let body = max(0, 1 - f.up / max(tongue, 0.05))
+            let bed = 0.3 * (1 - f.up) * (1 - f.up)
+            let heat = min(1, body * (0.55 + 0.6 * turbulence) + bed)
+            output[i] = context.palette.ramp(heat)
         }
-        for y in stride(from: h - 1, through: 2, by: -1) {
-            for x in 0..<w {
-                let rise = (grid[x, y - 1] + 2 * grid[x, y - 2]) / 3
-                let side = (grid[x - 1, y - 1] + grid[x + 1, y - 1]) * 0.5
-                grid[x, y] = rise * 0.88 + side * 0.12
-            }
-        }
-        // An occasional flare keeps it alive without strobing.
-        if rng.chance(0.2) {
-            let x = rng.int(below: w)
-            for dx in -1...1 { grid[x + dx, 1] = min(1, grid[x + dx, 1] + 0.25) }
-        }
+    }
+
+    func handle(_ event: InputEvent, point: ScenePoint?, context: FrameContext) {
+        guard case .keyDown = event, let point else { return }
+        let f = FlameGridEffect.flameCoordinates(of: point, scene: context.scene, span: settings.spanDevices)
+        boosts.append((f.x, point.device, context.time))
+        if boosts.count > 16 { boosts.removeFirst() }
     }
 }
 
@@ -53,7 +56,7 @@ final class InfernoFlame: FlameGridEffect {
 
     init(settings: EffectSettings) {
         decay = lerp(0.07, 0.028, settings.intensity)
-        super.init(settings: settings, seed: 0x1F3E0, slowSteps: 20, fastSteps: 70)
+        super.init(settings: settings, seed: 0x1F3E0, slowSteps: 14, fastSteps: 55)
     }
 
     override func step() {
@@ -127,7 +130,7 @@ final class EmbersFlame: FlameGridEffect {
         }
 
         for x in 0..<w {
-            let bed = 0.62 + 0.3 * Noise.fbm(Float(x) * 0.22, t * 0.35, octaves: 2)
+            let bed = 0.6 + 0.4 * Noise.fbm(Float(x) * 0.22, t * 0.7, octaves: 2)
             for y in 0..<h {
                 let falloff = expf(-Float(y) * 0.1)
                 grid[x, y] = max(bed * falloff, flame[x, y] * 0.85)
@@ -143,6 +146,7 @@ final class EmbersFlame: FlameGridEffect {
             guard spark.life > 0, spark.y < Float(h) else { continue }
             let gx = Int(spark.x.rounded())
             let gy = Int(spark.y.rounded())
+            guard gy >= 0 && gy < h else { continue }
             grid[gx, gy] = min(1, grid[gx, gy] + spark.life)
             alive.append(spark)
         }
@@ -169,11 +173,9 @@ final class WispFlame: Effect {
         boosts.removeAll { context.time - $0.time > 1.2 }
         for (i, point) in points.enumerated() {
             let c = point.coordinate(span: settings.spanDevices)
-            let phase: Float = settings.spanDevices ? 0 : Float(point.device) * 0.37
-            let kind = point.device < context.scene.devices.count ? context.scene.devices[point.device].kind : .other
-            let reach = settings.spanDevices ? 1 : FlameGridEffect.reach(for: kind)
-            let x = (c.x + phase) * 3.2
-            let up = (1 - c.y) * reach
+            let f = FlameGridEffect.flameCoordinates(of: point, scene: context.scene, span: settings.spanDevices)
+            let x = f.x * 3.2
+            let up = f.up
             let warp = Noise.simplex(x * 0.55 + t * 0.2, up * 1.2 - t * 0.5)
             let n = Noise.fbm(x + warp * 0.8, up * 2 - t * 0.9, octaves: 2) * 0.5 + 0.5
             let shape = max(0, 1 - up / height)
@@ -199,7 +201,7 @@ final class WildfireFlame: FlameGridEffect {
 
     init(settings: EffectSettings) {
         cooling = lerp(0.085, 0.035, settings.intensity)
-        super.init(settings: settings, seed: 0x3D7F1, slowSteps: 16, fastSteps: 60)
+        super.init(settings: settings, seed: 0x3D7F1, slowSteps: 12, fastSteps: 48)
     }
 
     override func step() {

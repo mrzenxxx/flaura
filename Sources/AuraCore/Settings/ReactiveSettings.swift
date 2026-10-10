@@ -61,7 +61,7 @@ extension ReactiveSettings: Codable {
         clickPulse = (try? c.decode(Bool.self, forKey: .clickPulse)) ?? d.clickPulse
         stoke = (try? c.decode(Bool.self, forKey: .stoke)) ?? d.stoke
         colorMode = (try? c.decode(ReactiveColorMode.self, forKey: .colorMode)) ?? d.colorMode
-        duration = (try? c.decode(Float.self, forKey: .duration)) ?? d.duration
+        duration = unitClamped((try? c.decode(Float.self, forKey: .duration)) ?? d.duration, fallback: d.duration)
         spanDevices = (try? c.decode(Bool.self, forKey: .spanDevices)) ?? d.spanDevices
     }
 }

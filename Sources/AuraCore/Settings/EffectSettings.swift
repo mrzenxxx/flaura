@@ -147,10 +147,15 @@ extension EffectSettings: Codable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let defaults = EffectSettings()
         kind = (try? c.decode(EffectKind.self, forKey: .kind)) ?? defaults.kind
-        speed = (try? c.decode(Float.self, forKey: .speed)) ?? defaults.speed
-        intensity = (try? c.decode(Float.self, forKey: .intensity)) ?? defaults.intensity
+        speed = unitClamped((try? c.decode(Float.self, forKey: .speed)) ?? defaults.speed, fallback: defaults.speed)
+        intensity = unitClamped((try? c.decode(Float.self, forKey: .intensity)) ?? defaults.intensity, fallback: defaults.intensity)
         direction = (try? c.decode(Direction.self, forKey: .direction)) ?? defaults.direction
         spanDevices = (try? c.decode(Bool.self, forKey: .spanDevices)) ?? defaults.spanDevices
         rainbow = (try? c.decode(Bool.self, forKey: .rainbow)) ?? defaults.rainbow
     }
+}
+
+/// Clamps a decoded 0…1 control; NaN or infinity falls back to the default.
+func unitClamped(_ value: Float, fallback: Float, range: ClosedRange<Float> = 0...1) -> Float {
+    value.isFinite ? min(max(value, range.lowerBound), range.upperBound) : fallback
 }

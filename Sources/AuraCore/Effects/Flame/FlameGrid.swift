@@ -88,7 +88,7 @@ class FlameGridEffect: Effect {
         self.settings = settings
         rng = SplitMix64(seed: seed)
         stepsPerSecond = rate(settings.speed, slowSteps, fastSteps)
-        easeRate = lerp(4, 9, settings.speed)
+        easeRate = lerp(7, 14, settings.speed)
     }
 
     /// Advances the simulation by one fixed step.
@@ -132,16 +132,21 @@ class FlameGridEffect: Effect {
         grid.stoke(at: gridPosition(of: point, scene: context.scene).x, amount: 0.9)
     }
 
+    /// Horizontal position (0…1, plus a per-device phase so devices do not mirror each other) and
+    /// height above the device's bottom edge (0 = bottom), squeezed for small devices.
+    static func flameCoordinates(of point: ScenePoint, scene: SceneLayout, span: Bool) -> (x: Float, up: Float) {
+        let c = point.coordinate(span: span)
+        let phase: Float = span ? 0 : Float(point.device) * 0.37
+        let kind = point.device < scene.devices.count ? scene.devices[point.device].kind : .other
+        let reach: Float = span ? 1 : reach(for: kind)
+        return (c.x + phase, (1 - c.y) * reach)
+    }
+
     /// Where an LED lands in the heat field. Each device repeats the fire (shifted so they do not
     /// look identical) unless the effect spans the desk; small devices sit lower in the flames.
     func gridPosition(of point: ScenePoint, scene: SceneLayout) -> SIMD2<Float> {
-        let c = point.coordinate(span: settings.spanDevices)
-        let phase: Float = settings.spanDevices ? 0 : Float(point.device) * 0.37
-        let kind = point.device < scene.devices.count ? scene.devices[point.device].kind : .other
-        let reach: Float = settings.spanDevices ? 1 : FlameGridEffect.reach(for: kind)
-        let gx = (c.x + phase) * Float(FlameGrid.width)
-        let gy = (1 - c.y) * Float(FlameGrid.height - 1) * reach
-        return SIMD2(gx, gy)
+        let f = FlameGridEffect.flameCoordinates(of: point, scene: scene, span: settings.spanDevices)
+        return SIMD2(f.x * Float(FlameGrid.width), f.up * Float(FlameGrid.height - 1))
     }
 
     /// Sampling radius in grid cells: roughly the area one LED stands for.

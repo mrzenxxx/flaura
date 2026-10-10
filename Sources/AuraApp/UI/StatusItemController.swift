@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Menu bar icon, the panel popover and the settings window.
 @MainActor
-final class StatusItemController: NSObject, NSPopoverDelegate {
+final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate {
     private let model: AppModel
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let popover = NSPopover()
@@ -60,12 +60,18 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         popover.contentViewController = nil
     }
 
+    /// Drop the window (and its SwiftUI tree observing the model) once closed.
+    func windowWillClose(_ notification: Notification) {
+        settingsWindow = nil
+    }
+
     func showSettings() {
         if settingsWindow == nil {
             let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model)))
             window.title = "Aura — настройки"
             window.styleMask = [.titled, .closable, .miniaturizable]
             window.isReleasedWhenClosed = false
+            window.delegate = self
             window.center()
             settingsWindow = window
         }

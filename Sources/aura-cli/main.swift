@@ -158,8 +158,10 @@ case "profile":
     })
     let gamma = AuraSettings().gamma
     let lut = PaletteLUT(.flame)
+    // Average of luma and peak channel: luma alone under-rates saturated reds, which carry fire.
     func level(_ c: RGB) -> Float {
-        0.2126 * powf(c.r, gamma) + 0.7152 * powf(c.g, gamma) + 0.0722 * powf(c.b, gamma)
+        let luma = 0.2126 * powf(c.r, gamma) + 0.7152 * powf(c.g, gamma) + 0.0722 * powf(c.b, gamma)
+        return (luma + powf(max(c.r, max(c.g, c.b)), gamma)) / 2
     }
     for kind in kinds {
         let effect = EffectFactory.make(EffectSettings(kind: kind, speed: speed, intensity: intensity))

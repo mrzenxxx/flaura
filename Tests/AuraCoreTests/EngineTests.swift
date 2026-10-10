@@ -10,6 +10,8 @@ final class FakeDevice: LightingDevice, @unchecked Sendable {
     private var _frames: [[RGB8]] = []
     private var _shutdowns: [ShutdownBehaviour] = []
     var failWrites = false
+    /// Fail this many writes, then succeed.
+    var failuresRemaining = 0
 
     init(id: String, kind: DeviceKind, layout: DeviceLayout) {
         info = DeviceInfo(id: id, name: id, vendor: "Test", kind: kind, detail: "")
@@ -23,6 +25,12 @@ final class FakeDevice: LightingDevice, @unchecked Sendable {
 
     func write(_ frame: [RGB8]) throws {
         if failWrites { throw CocoaError(.fileWriteUnknown) }
+        let fail = lock.withLock { () -> Bool in
+            guard failuresRemaining > 0 else { return false }
+            failuresRemaining -= 1
+            return true
+        }
+        if fail { throw CocoaError(.fileWriteUnknown) }
         lock.withLock { _frames.append(frame) }
     }
 
@@ -47,6 +55,12 @@ func waitUntil(timeout: TimeInterval = 2, _ condition: () -> Bool) -> Bool {
         #expect(stage.encode(.white, scale: 1) == RGB8(255, 255, 255))
         let mid = stage.encode(RGB(0.5, 0.5, 0.5), scale: 1)
         #expect(abs(Int(mid.r) - 128) <= 1)
+    }
+
+    @Test func nanBecomesBlack() {
+        let stage = OutputStage(gamma: 1.4)
+        #expect(stage.encode(RGB(.nan, .infinity, 0.5), scale: 1).r == 0)
+        #expect(stage.encode(RGB(1, 1, 1), scale: .nan) == RGB8(0, 0, 0))
     }
 
     @Test func gammaDarkensMidtonesAndScaleApplies() {
@@ -121,6 +135,42 @@ func waitUntil(timeout: TimeInterval = 2, _ condition: () -> Bool) -> Bool {
         engine.setSuspended(false)
         #expect(waitUntil { kb.frames.last?.contains { $0 != .black } == true })
         engine.shutdown()
+    }
+
+    @Test func staticFrameIsRetriedAfterAFailedWrite() {
+        let (kb, mat) = makeDevices()
+        kb.failuresRemaining = 1
+        let engine = RenderEngine()
+        engine.apply(AuraSettings(effect: EffectSettings(kind: .staticColor),
+                                  reactive: ReactiveSettings(ripple: false, keyGlow: false, clickPulse: false, stoke: false)))
+        engine.setDevices([kb, mat])
+        // The engine renders the static scene once; the sink must retry on its own.
+        #expect(waitUntil(timeout: 3) { kb.frames.count >= 1 })
+        engine.shutdown()
+    }
+
+    @Test func nothingRestartsAfterShutdown() {
+        let (kb, mat) = makeDevices()
+        let engine = RenderEngine()
+        engine.apply(AuraSettings(effect: EffectSettings(kind: .spectrum), framesPerSecond: 60))
+        engine.setDevices([kb, mat])
+        #expect(waitUntil { kb.frames.count >= 3 })
+        engine.shutdown()
+        let count = kb.frames.count
+        engine.apply(AuraSettings(effect: EffectSettings(kind: .wave), framesPerSecond: 60))
+        engine.post(.keyDown(keyCode: 0))
+        Thread.sleep(forTimeInterval: 0.3)
+        #expect(kb.frames.count == count)
+    }
+
+    @Test func offSceneShutsDownDark() {
+        let (kb, mat) = makeDevices()
+        let engine = RenderEngine()
+        engine.apply(AuraSettings(effect: EffectSettings(kind: .off)))
+        engine.setDevices([kb, mat])
+        #expect(waitUntil { kb.frames.count >= 1 })
+        engine.shutdown()
+        #expect(kb.shutdowns == [.off])
     }
 
     @Test func failingDeviceDoesNotBlockOthers() {

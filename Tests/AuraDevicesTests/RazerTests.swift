@@ -4,11 +4,14 @@ import Testing
 @testable import AuraDevices
 
 final class FakeTransport: ReportTransport, @unchecked Sendable {
-    private(set) var sent: [[UInt8]] = []
+    private let lock = NSLock()
+    private var _sent: [[UInt8]] = []
     var reply: [UInt8]?
 
+    var sent: [[UInt8]] { lock.withLock { _sent } }
+
     func send(_ report: [UInt8], index: UInt16) throws {
-        sent.append(report)
+        lock.withLock { _sent.append(report) }
     }
 
     func receive(length: Int, index: UInt16) throws -> [UInt8] {
@@ -110,6 +113,19 @@ final class FakeTransport: ReportTransport, @unchecked Sendable {
         }
     }
 
+    @Test func invalidDescriptorsAreRejected() {
+        var firefly = RazerCatalog.builtIn.first { $0.productID == 0x0C04 }!
+        #expect(firefly.isValid)
+        firefly.columns = 10 // Firefly layout always has 19 LEDs
+        #expect(!firefly.isValid)
+        var keyboard = RazerCatalog.builtIn.first { $0.productID == 0x025E }!
+        keyboard.ledIDs = []
+        #expect(!keyboard.isValid)
+        keyboard.ledIDs = [5]
+        keyboard.columns = 30
+        #expect(!keyboard.isValid)
+    }
+
     @Test func userDescriptorsLoadFromJSON() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -180,6 +196,28 @@ final class FakeTransport: ReportTransport, @unchecked Sendable {
             RazerPacket.spectrumEffect(transactionID: 0x1F, led: 0x01),
             RazerPacket.spectrumEffect(transactionID: 0x1F, led: 0x04),
         ])
+    }
+
+    @Test func resumeAfterSleepRepaintsTheHardware() {
+        let (device, transport) = makeKeyboard()
+        let engine = RenderEngine()
+        var settings = AuraSettings(effect: EffectSettings(kind: .staticColor),
+                                    reactive: ReactiveSettings(ripple: false, keyGlow: false, clickPulse: false, stoke: false))
+        settings.dimWhenIdle = false
+        engine.apply(settings)
+        engine.setDevices([device])
+        let customEffect = RazerPacket.customFrameEffect(transactionID: 0x1F)
+        let deadline = Date().addingTimeInterval(2)
+        while transport.sent.last != customEffect && Date() < deadline { Thread.sleep(forTimeInterval: 0.01) }
+        Thread.sleep(forTimeInterval: 0.2)
+        let before = transport.sent.count
+        engine.setSuspended(true)
+        engine.setSuspended(false)
+        let resumeDeadline = Date().addingTimeInterval(2)
+        while transport.sent.count < before + 8 && Date() < resumeDeadline { Thread.sleep(forTimeInterval: 0.01) }
+        // prepare (brightness) + 6 rows + custom-frame effect, even though the frame is unchanged.
+        #expect(transport.sent.count >= before + 8)
+        engine.shutdown()
     }
 
     @Test func firmwareVersionParsesReply() throws {

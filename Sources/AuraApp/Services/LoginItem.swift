@@ -11,11 +11,11 @@ enum LoginItem {
     }
 
     /// Returns an error message, or nil on success.
-    static func set(_ enabled: Bool) -> String? {
+    static func set(_ enabled: Bool, openSettingsIfNeeded: Bool = true) -> String? {
         do {
             if enabled {
                 try SMAppService.mainApp.register()
-                if needsApproval { SMAppService.openSystemSettingsLoginItems() }
+                if needsApproval && openSettingsIfNeeded { SMAppService.openSystemSettingsLoginItems() }
             } else {
                 try SMAppService.mainApp.unregister()
             }

@@ -19,11 +19,16 @@ public final class RenderEngine: @unchecked Sendable {
     /// The palette as drawn this frame: `palette`, or a rotated copy while palette flow is on.
     private var framePalette = PaletteLUT(.flame)
     private var flowUpdatedAt: Double = -1
+    /// Accumulated rather than derived from the clock, so changing the flow speed does not jump.
+    private var flowPhase: Double = 0
     private var devices: [any LightingDevice] = []
     private var sinks: [DeviceSink] = []
     private var suspended = false
     private var dirty = true
     private var animating = false
+    private var isShutDown = false
+    /// Colors as last sent (after crossfading), so a new crossfade starts from what is visible.
+    private var lastEmitted: [RGB] = []
 
     private let start = DispatchTime.now().uptimeNanoseconds
     private var lastTick: UInt64 = 0
@@ -47,11 +52,15 @@ public final class RenderEngine: @unchecked Sendable {
     }
 
     public func apply(_ newSettings: AuraSettings) {
-        queue.async { self.applyOnQueue(newSettings) }
+        queue.async {
+            guard !self.isShutDown else { return }
+            self.applyOnQueue(newSettings)
+        }
     }
 
     public func setDevices(_ newDevices: [any LightingDevice]) {
         queue.async {
+            guard !self.isShutDown else { return }
             let known = Dictionary(uniqueKeysWithValues: self.sinks.map { ($0.device.info.id, $0) })
             self.devices = newDevices
             self.sinks = newDevices.map { device in
@@ -67,7 +76,7 @@ public final class RenderEngine: @unchecked Sendable {
     /// Keyboard and mouse input for reactive layers.
     public func post(_ event: InputEvent) {
         queue.async {
-            guard self.settings.enabled, !self.suspended else { return }
+            guard self.settings.enabled, !self.suspended, !self.isShutDown else { return }
             self.compositor.handle(event, context: self.context(time: self.now(), dt: 0))
             self.dirty = true
             self.updateTimer()
@@ -77,12 +86,13 @@ public final class RenderEngine: @unchecked Sendable {
     /// Pauses rendering (display sleep, screen lock). With `dimWhenIdle` the lights go dark.
     public func setSuspended(_ value: Bool) {
         queue.async {
-            guard value != self.suspended else { return }
+            guard value != self.suspended, !self.isShutDown else { return }
             self.suspended = value
             if value {
                 if self.settings.dimWhenIdle { self.sendBlack() }
             } else {
-                self.sinks.forEach { $0.invalidate() }
+                // A device may have reset its lighting while asleep without reconnecting.
+                self.sinks.forEach { $0.reset() }
                 self.dirty = true
             }
             self.updateTimer()
@@ -93,12 +103,17 @@ public final class RenderEngine: @unchecked Sendable {
     public func shutdown(timeout: TimeInterval = 1.5) {
         let group = DispatchGroup()
         queue.sync {
+            guard !self.isShutDown else { return }
+            self.isShutDown = true
             self.timer?.cancel()
             self.timer = nil
-            self.suspended = true
+            self.updateTimer()
+            // If the lights were meant to be off, do not switch them back on at exit.
+            let lightsOff = !self.settings.enabled || self.settings.effect.kind == .off
+            let behaviour = lightsOff && self.settings.shutdownBehaviour != .keep ? .off : self.settings.shutdownBehaviour
             let color = self.output.encode(self.palette.colors[0], scale: self.settings.brightness)
             for sink in self.sinks {
-                sink.shutdown(self.settings.shutdownBehaviour, color: color, group: group)
+                sink.shutdown(behaviour, color: color, group: group)
             }
         }
         _ = group.wait(timeout: .now() + timeout)
@@ -117,6 +132,7 @@ public final class RenderEngine: @unchecked Sendable {
         }
         if new.paletteFlow != old.paletteFlow && !new.paletteFlow {
             framePalette = palette
+            beginCrossfade()
         }
         if new.gamma != old.gamma {
             output = OutputStage(gamma: new.gamma)
@@ -136,7 +152,7 @@ public final class RenderEngine: @unchecked Sendable {
             sendBlack()
         }
         if new.enabled && !old.enabled {
-            sinks.forEach { $0.invalidate() }
+            sinks.forEach { $0.reset() }
         }
         dirty = true
         updateTimer()
@@ -168,15 +184,16 @@ public final class RenderEngine: @unchecked Sendable {
     }
 
     private func beginCrossfade() {
-        guard !compositor.output.isEmpty else { return }
-        fadeFrom = compositor.output
+        let from = lastEmitted.count == compositor.output.count ? lastEmitted : compositor.output
+        guard !from.isEmpty else { return }
+        fadeFrom = from
         fadeStart = now()
     }
 
     private var fading: Bool { fadeStart >= 0 }
 
     private func updateTimer() {
-        let shouldRun = settings.enabled && !suspended && !sinks.isEmpty
+        let shouldRun = !isShutDown && settings.enabled && !suspended && !sinks.isEmpty
             && (dirty || fading || settings.paletteFlow || compositor.isAnimated)
         let interval = 1 / Double(min(max(settings.framesPerSecond, AuraSettings.fpsRange.lowerBound), AuraSettings.fpsRange.upperBound))
         if shouldRun {
@@ -207,7 +224,7 @@ public final class RenderEngine: @unchecked Sendable {
         let dt = Float(min(max(Double(nowNanos &- lastTick) / 1e9, 0), 0.1))
         lastTick = nowNanos
         let time = Double(nowNanos - start) / 1e9
-        updateFlow(time: time)
+        updateFlow(time: time, dt: dt)
         let context = context(time: time, dt: dt)
         compositor.render(context)
 
@@ -223,6 +240,7 @@ public final class RenderEngine: @unchecked Sendable {
                 fadeStart = -1
             }
         }
+        lastEmitted = colors
         emit(colors)
         dirty = false
         updateTimer()
@@ -242,12 +260,14 @@ public final class RenderEngine: @unchecked Sendable {
     }
 
     /// Rotating the palette rebuilds its tables; ~15 times a second is visually continuous.
-    private func updateFlow(time: Double) {
-        guard settings.paletteFlow, time - flowUpdatedAt >= 1.0 / 15 || flowUpdatedAt < 0 else { return }
-        flowUpdatedAt = time
+    private func updateFlow(time: Double, dt: Float) {
+        guard settings.paletteFlow else { return }
         let secondsPerColor = Double(rate(settings.paletteFlowSpeed, 14, 1.5))
-        let turn = time / (secondsPerColor * Double(palette.colors.count))
-        framePalette = palette.rotated(by: Float(turn - turn.rounded(.down)))
+        flowPhase += Double(dt) / (secondsPerColor * Double(palette.colors.count))
+        flowPhase -= flowPhase.rounded(.down)
+        guard time - flowUpdatedAt >= 1.0 / 15 || flowUpdatedAt < 0 else { return }
+        flowUpdatedAt = time
+        framePalette = palette.rotated(by: Float(flowPhase))
     }
 
     private func sendBlack() {

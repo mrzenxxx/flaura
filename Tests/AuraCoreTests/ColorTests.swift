@@ -85,3 +85,41 @@ import Testing
         #expect(back.colors.map(\.hex) == Palette.ice.colors.map(\.hex))
     }
 }
+
+@Suite struct SettingsDecodingTests {
+    @Test func clampsAndFallsBack() throws {
+        let json = """
+        {"brightness": 7, "gamma": 0.2, "effect": {"kind": "inferno", "speed": -3, "intensity": 2},
+         "reactive": {"duration": 9}, "devices": {"x": {"gain": 5}}, "framesPerSecond": 500, "version": 2}
+        """
+        let s = try JSONDecoder().decode(AuraSettings.self, from: Data(json.utf8))
+        #expect(s.brightness == 1)
+        #expect(s.gamma == 1)
+        #expect(s.effect.kind == .inferno && s.effect.speed == 0 && s.effect.intensity == 1)
+        #expect(s.reactive.duration == 1)
+        #expect(s.devices["x"]?.gain == 1)
+        #expect(s.framesPerSecond == 60)
+        #expect(s.palette == .flame)
+    }
+
+    @Test func migratesOldDefaults() throws {
+        let old = #"{"brightness": 0.85, "gamma": 1.8}"#
+        let migrated = try JSONDecoder().decode(AuraSettings.self, from: Data(old.utf8))
+        #expect(migrated.gamma == AuraSettings().gamma)
+        #expect(migrated.brightness == AuraSettings().brightness)
+        // A user's own choice is kept, and v2 files are left alone.
+        let custom = try JSONDecoder().decode(AuraSettings.self, from: Data(#"{"brightness": 0.5, "gamma": 2.0}"#.utf8))
+        #expect(custom.brightness == 0.5 && custom.gamma == 2.0)
+        let v2 = try JSONDecoder().decode(AuraSettings.self, from: Data(#"{"gamma": 1.8, "version": 2}"#.utf8))
+        #expect(v2.gamma == 1.8)
+    }
+
+    @Test func roundTrips() throws {
+        var settings = AuraSettings()
+        settings.paletteFlow = true
+        settings.devices["razer:025e"] = DeviceSettings(enabled: false, gain: 0.4,
+                                                        effect: EffectSettings(kind: .orbit), origin: SIMD2(10, 20))
+        let data = try JSONEncoder().encode(settings)
+        #expect(try JSONDecoder().decode(AuraSettings.self, from: data) == settings)
+    }
+}

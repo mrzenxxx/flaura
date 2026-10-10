@@ -24,6 +24,7 @@ final class AppModel: ObservableObject {
     private var power: PowerObserver!
     private var activity: NSObjectProtocol?
     private var accessPoll: Timer?
+    private var accessPollDeadline = Date.distantPast
 
     /// `live: false` builds the model without touching hardware or input (UI snapshots).
     init(live: Bool = true) {
@@ -47,7 +48,7 @@ final class AppModel: ObservableObject {
         guard live else { return }
         if store.isFirstLaunch {
             // A background utility should come back after a reboot; the user can turn it off in settings.
-            _ = LoginItem.set(true)
+            _ = LoginItem.set(true, openSettingsIfNeeded: false)
             launchAtLogin = LoginItem.isEnabled
             store.save(settings)
         }
@@ -125,26 +126,36 @@ final class AppModel: ObservableObject {
         let wanted = settings.enabled && settings.reactive.needsInput
         inputAccess = InputMonitor.hasAccess
         if wanted {
-            if !input.start() { startAccessPolling() }
+            input.start()
         } else {
             input.stop()
+            stopAccessPolling()
         }
     }
 
-    /// After the user flips the switch in System Settings, pick it up without a relaunch.
+    /// After "Разрешить…", pick up the System Settings switch without a relaunch. Runs for a few
+    /// minutes at most; opening the panel re-checks anyway.
     private func startAccessPolling() {
+        accessPollDeadline = Date().addingTimeInterval(180)
         guard accessPoll == nil else { return }
-        accessPoll = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+        accessPoll = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.pollAccess() }
         }
     }
 
-    private func pollAccess() {
-        inputAccess = InputMonitor.hasAccess
-        guard inputAccess else { return }
+    private func stopAccessPolling() {
         accessPoll?.invalidate()
         accessPoll = nil
-        updateInputMonitor()
+    }
+
+    private func pollAccess() {
+        inputAccess = InputMonitor.hasAccess
+        if inputAccess {
+            stopAccessPolling()
+            updateInputMonitor()
+        } else if Date() > accessPollDeadline {
+            stopAccessPolling()
+        }
     }
 
     private func updateSuspension() {

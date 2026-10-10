@@ -107,6 +107,7 @@ struct OutputStage {
 
     @inline(__always)
     private func channel(_ v: Float) -> UInt8 {
+        guard v.isFinite else { return 0 }
         let clamped = min(max(v, 0), 1)
         return table[Int(clamped * Float(OutputStage.resolution - 1) + 0.5)]
     }
