@@ -16,7 +16,7 @@ final class HearthFlame: Effect {
     init(settings: EffectSettings) {
         self.settings = settings
         speed = rate(settings.speed, 0.28, 1.6)
-        height = lerp(0.85, 1.7, settings.intensity)
+        height = lerp(1.05, 2.1, settings.intensity)
     }
 
     func render(_ context: FrameContext, points: [ScenePoint], into output: inout [RGB]) {
@@ -35,7 +35,8 @@ final class HearthFlame: Effect {
             }
             let turbulence = Noise.fbm(x * 1.7, f.up * 2.6 - t * 1.7, octaves: 2) * 0.5 + 0.5
             let body = max(0, 1 - f.up / max(tongue, 0.05))
-            let bed = 0.3 * (1 - f.up) * (1 - f.up)
+            // Glowing backdrop: the top never goes fully black, the bottom stays hot.
+            let bed = 0.13 + 0.3 * (1 - f.up) * (1 - f.up)
             let heat = min(1, body * (0.55 + 0.6 * turbulence) + bed)
             output[i] = context.palette.ramp(heat)
         }
@@ -200,7 +201,7 @@ final class WildfireFlame: FlameGridEffect {
     private let cooling: Float
 
     init(settings: EffectSettings) {
-        cooling = lerp(0.085, 0.035, settings.intensity)
+        cooling = lerp(0.07, 0.028, settings.intensity)
         super.init(settings: settings, seed: 0x3D7F1, slowSteps: 12, fastSteps: 48)
     }
 
