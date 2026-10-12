@@ -111,7 +111,10 @@ public final class RenderEngine: @unchecked Sendable {
             // If the lights were meant to be off, do not switch them back on at exit.
             let lightsOff = !self.settings.enabled || self.settings.effect.kind == .off
             let behaviour = lightsOff && self.settings.shutdownBehaviour != .keep ? .off : self.settings.shutdownBehaviour
-            let color = self.output.encode(self.palette.colors[0], scale: self.settings.brightness)
+            // The middle palette color is the most representative (orange for Пламя); devices
+            // keep it in memory and show it at the next power-on, before macOS starts.
+            let colors = self.palette.colors
+            let color = self.output.encode(colors[colors.count / 2], scale: self.settings.brightness)
             for sink in self.sinks {
                 sink.shutdown(behaviour, color: color, group: group)
             }

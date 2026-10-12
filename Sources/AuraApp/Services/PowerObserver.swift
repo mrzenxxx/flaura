@@ -1,15 +1,12 @@
 import AppKit
+import AuraCore
 
-/// Tracks whether the user is away: displays asleep, screen locked, or the system sleeping.
+/// Feeds `PowerState` from workspace and distributed notifications.
 @MainActor
 final class PowerObserver {
-    struct State: Equatable {
-        var displaysAsleep = false
-        var locked = false
-        var systemAsleep = false
-    }
+    typealias State = PowerState
 
-    private(set) var state = State() {
+    private(set) var state = PowerState() {
         didSet { if state != oldValue { onChange(state) } }
     }
 

@@ -2,7 +2,8 @@ import Foundation
 
 /// What a device does when Aura stops driving it (quit, sleep).
 public enum ShutdownBehaviour: String, Codable, CaseIterable, Sendable {
-    /// Hardware static effect in the palette's first color: stays in sync because it does not move.
+    /// Hardware static effect in the palette's middle color, stored in the device so it also shows
+    /// at power-on; stays in sync because it does not move.
     case staticColor
     /// The device's own spectrum cycling.
     case spectrum

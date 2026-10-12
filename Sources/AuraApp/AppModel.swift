@@ -159,9 +159,16 @@ final class AppModel: ObservableObject {
         }
     }
 
+    private var suspended = false
+
     private func updateSuspension() {
         let state = power.state
-        let away = state.systemAsleep || (settings.dimWhenIdle && (state.displaysAsleep || state.locked))
+        let away = state.shouldSuspend(dimWhenIdle: settings.dimWhenIdle)
+        if away != suspended {
+            suspended = away
+            NSLog("Aura: lighting %@ (displays asleep: %d, locked: %d, system asleep: %d)",
+                  away ? "paused" : "resumed", state.displaysAsleep, state.locked, state.systemAsleep)
+        }
         engine.setSuspended(away)
     }
 

@@ -117,7 +117,8 @@ private struct GeneralTab: View {
                 if let error = model.loginItemError {
                     Text(error).font(.system(size: 11)).foregroundStyle(.red)
                 }
-                Toggle("Гасить подсветку, когда экран спит или заблокирован", isOn: $model.settings.dimWhenIdle)
+                Toggle("Гасить подсветку, когда монитор выключается", isOn: $model.settings.dimWhenIdle)
+                    .help("На экране блокировки и форме входа подсветка горит, пока горит монитор")
                 Picker("После выхода из Aura", selection: $model.settings.shutdownBehaviour) {
                     ForEach(ShutdownBehaviour.allCases, id: \.self) { Text($0.title).tag($0) }
                 }

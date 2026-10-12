@@ -56,7 +56,7 @@ public struct AuraSettings: Hashable, Sendable {
     /// Output gamma: LEDs are linear, so ~2 makes fades and dark palette colors look like on screen.
     public var gamma: Float
     public var framesPerSecond: Int
-    /// Turn the lights off while displays sleep or the screen is locked.
+    /// Turn the lights off while the displays sleep (lock screen alone keeps them on).
     public var dimWhenIdle: Bool
     /// What devices show after Aura quits.
     public var shutdownBehaviour: ShutdownBehaviour
