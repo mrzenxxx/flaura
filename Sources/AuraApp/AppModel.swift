@@ -47,11 +47,10 @@ final class AppModel: ObservableObject {
             }
         )
         guard live else { return }
-        if store.isFirstLaunch {
+        if settings.launchAtLogin {
             // A background utility should come back after a reboot; the user can turn it off in settings.
-            _ = LoginItem.set(true, openSettingsIfNeeded: false)
+            if let error = LoginItem.restore() { NSLog("Aura: login item: %@", error) }
             launchAtLogin = LoginItem.isEnabled
-            store.save(settings)
         }
         engine.apply(settings)
         registry.start { [weak self] devices in
@@ -78,11 +77,16 @@ final class AppModel: ObservableObject {
     func setLaunchAtLogin(_ enabled: Bool) {
         loginItemError = LoginItem.set(enabled)
         launchAtLogin = LoginItem.isEnabled
+        settings.launchAtLogin = enabled
     }
 
     func refreshPermissions() {
         inputAccess = InputMonitor.hasAccess
-        launchAtLogin = LoginItem.isEnabled
+        let loginItem = LoginItem.isEnabled
+        // Removed in System Settings → Login Items: take that as the user's choice, so the next
+        // launch does not add it back.
+        if launchAtLogin && !loginItem { settings.launchAtLogin = false }
+        launchAtLogin = loginItem
         updateInputMonitor()
     }
 

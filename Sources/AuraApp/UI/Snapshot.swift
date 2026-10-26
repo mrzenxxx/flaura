@@ -25,6 +25,8 @@ enum Snapshot {
             let suffix = appearance == .darkAqua ? "dark" : "light"
             render(PanelView(model: model, openSettings: {}, quit: {}), appearance: appearance,
                    to: directory.appendingPathComponent("panel-\(suffix).png"))
+            render(PanelView(model: model, openSettings: {}, quit: {}, editingColor: 1), appearance: appearance,
+                   to: directory.appendingPathComponent("panel-editor-\(suffix).png"))
             render(SettingsView(model: model), appearance: appearance,
                    to: directory.appendingPathComponent("settings-\(suffix).png"))
         }

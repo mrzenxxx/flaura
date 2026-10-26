@@ -56,6 +56,22 @@ extension Palette {
     public static let amethyst = Palette(name: "Аметист", hex: ["#3B0A99", "#8E2DE2", "#F0B7FF"])
 
     public static let presets: [Palette] = [flame, ice, toxic, sunset, ocean, synthwave, aurora, blood, amethyst]
+
+    /// A random vivid color at least 60° of hue away from the palette's own colors when there is
+    /// room, so a newly added color stands out instead of repeating one already there.
+    public static func randomColor(avoiding existing: [RGB], using rng: inout some RandomNumberGenerator) -> RGB {
+        // Gray, white and near-black have no hue worth keeping away from.
+        let hues = existing.map(\.hsvComponents).filter { $0.s > 0.15 && $0.v > 0.05 }.map(\.h)
+        func distance(_ hue: Float) -> Float {
+            hues.map { min(abs($0 - hue), 1 - abs($0 - hue)) }.min() ?? 1
+        }
+        var best = Float.random(in: 0..<1, using: &rng)
+        for _ in 0..<32 where distance(best) < 1.0 / 6 {
+            let candidate = Float.random(in: 0..<1, using: &rng)
+            if distance(candidate) > distance(best) { best = candidate }
+        }
+        return RGB.hsv(best, Float.random(in: 0.75...1, using: &rng), 1)
+    }
 }
 
 /// Precomputed lookup tables so effects can sample the palette per LED per frame for free.

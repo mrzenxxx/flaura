@@ -7,6 +7,16 @@ struct PanelView: View {
     let openSettings: () -> Void
     let quit: () -> Void
 
+    /// Index of the palette color open in the editor.
+    @State private var editingColor: Int?
+
+    init(model: AppModel, openSettings: @escaping () -> Void, quit: @escaping () -> Void, editingColor: Int? = nil) {
+        self.model = model
+        self.openSettings = openSettings
+        self.quit = quit
+        _editingColor = State(initialValue: editingColor)
+    }
+
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 5)
 
     var body: some View {
@@ -101,60 +111,107 @@ struct PanelView: View {
                     }
                 }
             }
-            HStack(spacing: 8) {
-                ForEach(model.settings.palette.colors.indices, id: \.self) { index in
-                    ColorPicker("", selection: colorBinding(index), supportsOpacity: false)
-                        .labelsHidden()
+            let colors = model.settings.palette.colors
+            HStack(spacing: 6) {
+                ForEach(colors.indices, id: \.self) { index in
+                    ColorSwatch(color: colors[index], selected: editingColor == index) {
+                        editingColor = editingColor == index ? nil : index
+                    }
                 }
-                Button {
-                    var p = model.settings.palette
-                    p.colors.append(p.colors.last ?? .white)
-                    p.name = "Своя"
-                    model.settings.palette = p
-                } label: { Image(systemName: "plus") }
-                    .disabled(model.settings.palette.colors.count >= Palette.maxColors)
-                    .help("Добавить цвет")
-                Button {
-                    var p = model.settings.palette
-                    p.colors.removeLast()
-                    p.name = "Своя"
-                    model.settings.palette = p
-                } label: { Image(systemName: "minus") }
-                    .disabled(model.settings.palette.colors.count <= 1)
-                    .help("Убрать цвет")
+                if colors.count < Palette.maxColors {
+                    AddColorButton(action: addColor)
+                }
                 Spacer()
             }
-            .buttonStyle(.borderless)
-            RoundedRectangle(cornerRadius: 4)
-                .fill(model.settings.palette.gradient)
-                .frame(height: 6)
+            if let index = editingColor, index < colors.count {
+                ColorEditor(color: colors[index], canDelete: colors.count > 1,
+                            change: { setColor($0, at: index) },
+                            randomize: { setColor(randomColor(besides: index), at: index) },
+                            delete: { removeColor(at: index) })
+            }
+            paletteStrip
             Toggle("Перетекание цветов", isOn: $model.settings.paletteFlow)
                 .font(.system(size: 12))
                 .toggleStyle(.switch)
                 .controlSize(.mini)
-                .help("Цвета палитры плавно перетекают друг в друга поверх любого эффекта")
+            Text("Палитра медленно прокручивается по кругу: каждый цвет перетекает в соседний. Работает поверх любого эффекта.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             if model.settings.paletteFlow {
-                CommitSlider(title: "Скорость перелива", value: model.settings.paletteFlowSpeed) {
+                CommitSlider(title: "Скорость", value: model.settings.paletteFlowSpeed) {
                     model.settings.paletteFlowSpeed = $0
+                } format: { speed in
+                    var settings = AuraSettings()
+                    settings.paletteFlowSpeed = speed
+                    let seconds = settings.paletteFlowSecondsPerColor
+                    return String(format: seconds >= 10 ? "%.0f с" : "%.1f с", seconds)
                 }
+                .help("Сколько секунд один цвет перетекает в соседний")
             }
         }
     }
 
-    private func colorBinding(_ index: Int) -> Binding<Color> {
-        Binding(
-            get: {
-                let colors = model.settings.palette.colors
-                return index < colors.count ? colors[index].color : .white
-            },
-            set: { color in
-                var p = model.settings.palette
-                guard index < p.colors.count else { return }
-                p.colors[index] = RGB(color)
-                p.name = "Своя"
-                model.settings.palette = p
+    /// The palette as a gradient bar. With flow on it moves the way the lights do.
+    @ViewBuilder
+    private var paletteStrip: some View {
+        let palette = model.settings.palette
+        if model.settings.paletteFlow {
+            let lut = PaletteLUT(palette)
+            let n = palette.colors.count
+            let turn = Double(model.settings.paletteFlowSecondsPerColor) * Double(n)
+            TimelineView(.animation(minimumInterval: 1.0 / 30)) { timeline in
+                let phase = timeline.date.timeIntervalSinceReferenceDate / turn
+                let colors = (0..<n).map { lut.loop(Float($0) / Float(n) + fraction(phase)) }
+                strip(Palette(name: "", colors: colors))
             }
-        )
+        } else {
+            strip(palette)
+        }
+    }
+
+    private func strip(_ palette: Palette) -> some View {
+        RoundedRectangle(cornerRadius: 4)
+            .fill(palette.gradient)
+            .frame(height: 6)
+    }
+
+    private func fraction(_ x: Double) -> Float {
+        Float(x - x.rounded(.down))
+    }
+
+    private func addColor() {
+        var p = model.settings.palette
+        guard p.colors.count < Palette.maxColors else { return }
+        var rng = SystemRandomNumberGenerator()
+        p.colors.append(Palette.randomColor(avoiding: p.colors, using: &rng))
+        p.name = "Своя"
+        model.settings.palette = p
+        editingColor = p.colors.count - 1
+    }
+
+    private func setColor(_ color: RGB, at index: Int) {
+        var p = model.settings.palette
+        guard index < p.colors.count, p.colors[index] != color else { return }
+        p.colors[index] = color
+        p.name = "Своя"
+        model.settings.palette = p
+    }
+
+    private func removeColor(at index: Int) {
+        var p = model.settings.palette
+        guard p.colors.count > 1, index < p.colors.count else { return }
+        p.colors.remove(at: index)
+        p.name = "Своя"
+        model.settings.palette = p
+        editingColor = nil
+    }
+
+    private func randomColor(besides index: Int) -> RGB {
+        var others = model.settings.palette.colors
+        if index < others.count { others.remove(at: index) }
+        var rng = SystemRandomNumberGenerator()
+        return Palette.randomColor(avoiding: others, using: &rng)
     }
 
     // MARK: Parameters

@@ -265,7 +265,7 @@ public final class RenderEngine: @unchecked Sendable {
     /// Rotating the palette rebuilds its tables; ~15 times a second is visually continuous.
     private func updateFlow(time: Double, dt: Float) {
         guard settings.paletteFlow else { return }
-        let secondsPerColor = Double(rate(settings.paletteFlowSpeed, 14, 1.5))
+        let secondsPerColor = Double(settings.paletteFlowSecondsPerColor)
         flowPhase += Double(dt) / (secondsPerColor * Double(palette.colors.count))
         flowPhase -= flowPhase.rounded(.down)
         guard time - flowUpdatedAt >= 1.0 / 15 || flowUpdatedAt < 0 else { return }

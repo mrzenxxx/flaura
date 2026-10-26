@@ -82,6 +82,25 @@ public struct RGB: Hashable, Sendable, Codable {
         default: return RGB(v, p, q)
         }
     }
+
+    /// The inverse of `hsv(_:_:_:)`. Gray has hue 0 and saturation 0.
+    public var hsvComponents: (h: Float, s: Float, v: Float) {
+        let c = clamped
+        let v = max(c.r, c.g, c.b)
+        let delta = v - min(c.r, c.g, c.b)
+        guard delta > 0 else { return (0, 0, v) }
+        var h: Float
+        if v == c.r {
+            h = (c.g - c.b) / delta
+        } else if v == c.g {
+            h = 2 + (c.b - c.r) / delta
+        } else {
+            h = 4 + (c.r - c.g) / delta
+        }
+        h /= 6
+        if h < 0 { h += 1 }
+        return (h, delta / v, v)
+    }
 }
 
 /// Packed 8-bit color as sent to hardware.

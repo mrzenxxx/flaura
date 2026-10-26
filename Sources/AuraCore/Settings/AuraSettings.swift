@@ -60,6 +60,9 @@ public struct AuraSettings: Hashable, Sendable {
     public var dimWhenIdle: Bool
     /// What devices show after Aura quits.
     public var shutdownBehaviour: ShutdownBehaviour
+    /// Start Aura when the user logs in. While this is on, the app re-registers its login item at
+    /// every launch, so one failed attempt does not lose it for good.
+    public var launchAtLogin: Bool
     /// Keyed by `LightingDevice.id`.
     public var devices: [String: DeviceSettings]
 
@@ -67,7 +70,8 @@ public struct AuraSettings: Hashable, Sendable {
                 effect: EffectSettings = EffectSettings(),
                 reactive: ReactiveSettings = ReactiveSettings(), brightness: Float = 1, gamma: Float = 1.4,
                 framesPerSecond: Int = 30, dimWhenIdle: Bool = true,
-                shutdownBehaviour: ShutdownBehaviour = .staticColor, devices: [String: DeviceSettings] = [:]) {
+                shutdownBehaviour: ShutdownBehaviour = .staticColor, launchAtLogin: Bool = true,
+                devices: [String: DeviceSettings] = [:]) {
         self.enabled = enabled
         self.palette = palette
         self.paletteFlow = paletteFlow
@@ -79,11 +83,17 @@ public struct AuraSettings: Hashable, Sendable {
         self.framesPerSecond = framesPerSecond
         self.dimWhenIdle = dimWhenIdle
         self.shutdownBehaviour = shutdownBehaviour
+        self.launchAtLogin = launchAtLogin
         self.devices = devices
     }
 
     public func device(_ id: String) -> DeviceSettings {
         devices[id] ?? DeviceSettings()
+    }
+
+    /// How long palette flow takes to move each color into its neighbour's place.
+    public var paletteFlowSecondsPerColor: Float {
+        rate(paletteFlowSpeed, 14, 1.5)
     }
 
     public static let fpsRange = 15...60
@@ -94,7 +104,7 @@ public struct AuraSettings: Hashable, Sendable {
 
 extension AuraSettings: Codable {
     enum CodingKeys: String, CodingKey {
-        case version, enabled, palette, paletteFlow, paletteFlowSpeed, effect, reactive, brightness, gamma, framesPerSecond, dimWhenIdle, shutdownBehaviour, devices
+        case version, enabled, palette, paletteFlow, paletteFlowSpeed, effect, reactive, brightness, gamma, framesPerSecond, dimWhenIdle, shutdownBehaviour, launchAtLogin, devices
     }
 
     public init(from decoder: Decoder) throws {
@@ -113,6 +123,7 @@ extension AuraSettings: Codable {
         framesPerSecond = min(max(fps, AuraSettings.fpsRange.lowerBound), AuraSettings.fpsRange.upperBound)
         dimWhenIdle = (try? c.decode(Bool.self, forKey: .dimWhenIdle)) ?? d.dimWhenIdle
         shutdownBehaviour = (try? c.decode(ShutdownBehaviour.self, forKey: .shutdownBehaviour)) ?? d.shutdownBehaviour
+        launchAtLogin = (try? c.decode(Bool.self, forKey: .launchAtLogin)) ?? d.launchAtLogin
         devices = (try? c.decode([String: DeviceSettings].self, forKey: .devices)) ?? d.devices
 
         // v1 files carry the old defaults (gamma 1.8, brightness 0.85), which made fire too dark.
@@ -137,6 +148,7 @@ extension AuraSettings: Codable {
         try c.encode(framesPerSecond, forKey: .framesPerSecond)
         try c.encode(dimWhenIdle, forKey: .dimWhenIdle)
         try c.encode(shutdownBehaviour, forKey: .shutdownBehaviour)
+        try c.encode(launchAtLogin, forKey: .launchAtLogin)
         try c.encode(devices, forKey: .devices)
     }
 }

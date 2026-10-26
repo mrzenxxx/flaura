@@ -30,6 +30,18 @@ import Testing
         #expect(RGB.hsv(1.25, 1, 1) == RGB.hsv(0.25, 1, 1))
     }
 
+    @Test func hsvComponentsInvertHSV() {
+        for color in [RGB(1, 0, 0), RGB(0, 1, 0), RGB(0, 0, 1), RGB(1, 0.35, 0), RGB(0.2, 0.5, 0.8), RGB(0.5, 0, 1)] {
+            let (h, s, v) = color.hsvComponents
+            let back = RGB.hsv(h, s, v)
+            #expect(abs(back.r - color.r) < 0.001 && abs(back.g - color.g) < 0.001 && abs(back.b - color.b) < 0.001)
+            #expect(h >= 0 && h < 1)
+        }
+        let gray = RGB(0.4, 0.4, 0.4).hsvComponents
+        #expect(gray.s == 0 && abs(gray.v - 0.4) < 0.0001)
+        #expect(RGB.black.hsvComponents.v == 0)
+    }
+
     @Test func screenNeverExceedsWhite() {
         let c = RGB.screen(RGB(0.9, 0.5, 1), RGB(0.9, 0.9, 1))
         #expect(c.r <= 1 && c.g <= 1 && c.b <= 1)
@@ -77,6 +89,23 @@ import Testing
         #expect(lut.brightest == RGB(1, 1, 0.5))
     }
 
+    /// "+" must add a color that is visibly new, not a copy of one already in the palette.
+    @Test func randomColorIsVividAndStandsOut() {
+        var rng = SplitMix64(seed: 7)
+        let existing = Palette.flame.colors
+        let hues = existing.map(\.hsvComponents.h)
+        for _ in 0..<200 {
+            let color = Palette.randomColor(avoiding: existing, using: &rng)
+            let (h, s, v) = color.hsvComponents
+            #expect(s >= 0.7 && v >= 0.99)
+            let nearest = hues.map { min(abs($0 - h), 1 - abs($0 - h)) }.min()!
+            #expect(nearest >= 1.0 / 6 - 0.0001)
+        }
+        // Gray and white have no hue to avoid; the result is still a vivid color.
+        let vivid = Palette.randomColor(avoiding: [.white], using: &rng).hsvComponents
+        #expect(vivid.s >= 0.7)
+    }
+
     @Test func codableAsHex() throws {
         let data = try JSONEncoder().encode(Palette.ice)
         let text = String(decoding: data, as: UTF8.self)
@@ -114,9 +143,25 @@ import Testing
         #expect(v2.gamma == 1.8)
     }
 
+    /// Files written before the setting existed keep launching at login.
+    @Test func launchAtLoginDefaultsOn() throws {
+        #expect(try JSONDecoder().decode(AuraSettings.self, from: Data("{}".utf8)).launchAtLogin)
+        let off = try JSONDecoder().decode(AuraSettings.self, from: Data(#"{"launchAtLogin": false}"#.utf8))
+        #expect(!off.launchAtLogin)
+    }
+
+    @Test func paletteFlowSpeedMapsToSecondsPerColor() {
+        var settings = AuraSettings()
+        settings.paletteFlowSpeed = 0
+        #expect(abs(settings.paletteFlowSecondsPerColor - 14) < 0.001)
+        settings.paletteFlowSpeed = 1
+        #expect(abs(settings.paletteFlowSecondsPerColor - 1.5) < 0.001)
+    }
+
     @Test func roundTrips() throws {
         var settings = AuraSettings()
         settings.paletteFlow = true
+        settings.launchAtLogin = false
         settings.devices["razer:025e"] = DeviceSettings(enabled: false, gain: 0.4,
                                                         effect: EffectSettings(kind: .orbit), origin: SIMD2(10, 20))
         let data = try JSONEncoder().encode(settings)
