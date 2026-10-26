@@ -41,7 +41,7 @@ struct PanelView: View {
                 Image(systemName: "flame.fill")
                     .font(.system(size: 18))
                     .foregroundStyle(model.settings.palette.gradient)
-                Text("Aura")
+                Text("Flaura")
                     .font(.system(size: 17, weight: .semibold))
                 Spacer()
                 Toggle("", isOn: $model.settings.enabled)
@@ -79,7 +79,7 @@ struct PanelView: View {
 
     private var effects: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionTitle("Aura Flame")
+            SectionTitle("Огонь")
             LazyVGrid(columns: columns, spacing: 6) {
                 ForEach(EffectKind.flames) { tile($0) }
             }
@@ -294,7 +294,7 @@ struct PanelView: View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "hand.raised.fill").foregroundStyle(.orange)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Чтобы подсветка реагировала на клавиши и клики, нужно разрешение «Мониторинг ввода». Aura только слушает нажатия и никуда их не передаёт.")
+                Text("Чтобы подсветка реагировала на клавиши и клики, нужно разрешение «Мониторинг ввода». Flaura только слушает нажатия и никуда их не передаёт.")
                     .font(.system(size: 11))
                     .fixedSize(horizontal: false, vertical: true)
                 Button("Разрешить…") { model.requestInputAccess() }

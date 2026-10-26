@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Builds Aura.app, installs it to ~/Applications and (re)starts it.
+# Builds Flaura.app, installs it to ~/Applications and (re)starts it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -8,19 +8,22 @@ scripts/build-app.sh "$@"
 DEST="$HOME/Applications"
 mkdir -p "$DEST"
 
-if pgrep -x Aura >/dev/null; then
-  echo "› stopping running Aura"
-  osascript -e 'tell application id "com.archigene.aura" to quit' >/dev/null 2>&1 || pkill -x Aura || true
-  for _ in {1..20}; do pgrep -x Aura >/dev/null || break; sleep 0.2; done
-  if pgrep -x Aura >/dev/null; then
-    pkill -x Aura || true
+# Versions before the rename ran as "Aura"; the bundle id is the same for both.
+running() { pgrep -x Flaura >/dev/null || pgrep -x Aura >/dev/null; }
+
+if running; then
+  echo "› stopping running Flaura"
+  osascript -e 'tell application id "com.archigene.aura" to quit' >/dev/null 2>&1 || pkill -x Flaura || pkill -x Aura || true
+  for _ in {1..20}; do running || break; sleep 0.2; done
+  if running; then
+    pkill -x Flaura || pkill -x Aura || true
     sleep 0.5
   fi
 fi
 
-rm -rf "$DEST/Aura.app"
-cp -R build/Aura.app "$DEST/Aura.app"
-echo "› installed to $DEST/Aura.app"
+rm -rf "$DEST/Flaura.app" "$DEST/Aura.app"
+cp -R build/Flaura.app "$DEST/Flaura.app"
+echo "› installed to $DEST/Flaura.app"
 
-open "$DEST/Aura.app"
-echo "✓ Aura is running — look for the flame in the menu bar"
+open "$DEST/Flaura.app"
+echo "✓ Flaura is running — look for the flame in the menu bar"

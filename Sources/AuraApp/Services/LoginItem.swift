@@ -10,9 +10,9 @@ enum LoginItem {
         SMAppService.mainApp.status == .requiresApproval
     }
 
-    /// Registers Aura again if macOS has no login item for it (an earlier attempt failed or the
+    /// Registers Flaura again if macOS has no login item for it (an earlier attempt failed or the
     /// item got lost). Leaves an item waiting for approval alone. Only a real app bundle can be a
-    /// login item, so a bare `.build/debug/Aura` does nothing.
+    /// login item, so a bare `.build/debug/Flaura` does nothing.
     static func restore() -> String? {
         let status = SMAppService.mainApp.status
         guard Bundle.main.bundleURL.pathExtension == "app",

@@ -5,13 +5,13 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>ru</string>
 	<key>CFBundleExecutable</key>
-	<string>Aura</string>
+	<string>Flaura</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.archigene.aura</string>
 	<key>CFBundleName</key>
-	<string>Aura</string>
+	<string>Flaura</string>
 	<key>CFBundleDisplayName</key>
-	<string>Aura</string>
+	<string>Flaura</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -27,6 +27,6 @@
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Aura — подсветка Razer для macOS</string>
+	<string>Flaura — подсветка Razer для macOS</string>
 </dict>
 </plist>

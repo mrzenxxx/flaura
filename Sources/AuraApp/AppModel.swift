@@ -31,7 +31,7 @@ final class AppModel: ObservableObject {
         store = SettingsStore(directory: storeDirectory)
         settings = store.load()
         registry = DeviceRegistry(providers: DeviceRegistry.standardProviders { message in
-            NSLog("Aura: %@", message)
+            NSLog("Flaura: %@", message)
         })
 
         let engine = engine
@@ -49,7 +49,7 @@ final class AppModel: ObservableObject {
         guard live else { return }
         if settings.launchAtLogin {
             // A background utility should come back after a reboot; the user can turn it off in settings.
-            if let error = LoginItem.restore() { NSLog("Aura: login item: %@", error) }
+            if let error = LoginItem.restore() { NSLog("Flaura: login item: %@", error) }
             launchAtLogin = LoginItem.isEnabled
         }
         engine.apply(settings)
@@ -170,7 +170,7 @@ final class AppModel: ObservableObject {
         let away = state.shouldSuspend(dimWhenIdle: settings.dimWhenIdle)
         if away != suspended {
             suspended = away
-            NSLog("Aura: lighting %@ (displays asleep: %d, locked: %d, system asleep: %d)",
+            NSLog("Flaura: lighting %@ (displays asleep: %d, locked: %d, system asleep: %d)",
                   away ? "paused" : "resumed", state.displaysAsleep, state.locked, state.systemAsleep)
         }
         engine.setSuspended(away)

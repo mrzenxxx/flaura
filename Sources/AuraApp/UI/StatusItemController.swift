@@ -17,7 +17,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate 
         if let button = item.button {
             button.target = self
             button.action = #selector(toggle)
-            button.toolTip = "Aura"
+            button.toolTip = "Flaura"
         }
         updateIcon(enabled: model.settings.enabled)
         observation = model.$settings
@@ -31,7 +31,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate 
     }
 
     private func updateIcon(enabled: Bool) {
-        let image = NSImage(systemSymbolName: enabled ? "flame.fill" : "flame", accessibilityDescription: "Aura")
+        let image = NSImage(systemSymbolName: enabled ? "flame.fill" : "flame", accessibilityDescription: "Flaura")
         image?.isTemplate = true
         item.button?.image = image
     }
@@ -68,7 +68,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate 
     func showSettings() {
         if settingsWindow == nil {
             let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model)))
-            window.title = "Aura — настройки"
+            window.title = "Flaura — настройки"
             window.styleMask = [.titled, .closable, .miniaturizable]
             window.isReleasedWhenClosed = false
             window.delegate = self

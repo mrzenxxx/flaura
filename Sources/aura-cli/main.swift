@@ -4,11 +4,11 @@ import Foundation
 
 // Hardware diagnostics without the UI.
 //
-//   aura-cli list                              connected devices
-//   aura-cli pattern                           orientation test pattern (see below)
-//   aura-cli run <effect> [seconds] [palette]  run an effect through the real engine
-//   aura-cli bench [frames]                    time full-frame writes per device
-//   aura-cli restore [static|spectrum|off]     hand devices back to the hardware
+//   flaura-cli list                              connected devices
+//   flaura-cli pattern                           orientation test pattern (see below)
+//   flaura-cli run <effect> [seconds] [palette]  run an effect through the real engine
+//   flaura-cli bench [frames]                    time full-frame writes per device
+//   flaura-cli restore [static|spectrum|off]     hand devices back to the hardware
 
 let arguments = Array(CommandLine.arguments.dropFirst())
 let command = arguments.first ?? "list"
@@ -218,7 +218,7 @@ case "restore":
     }
 
 default:
-    print("Usage: aura-cli list | pattern | run <effect> [seconds] [palette] [--typing] | bench [frames] | restore [static|spectrum|off]")
+    print("Usage: flaura-cli list | pattern | run <effect> [seconds] [palette] [--typing] | bench [frames] | restore [static|spectrum|off]")
 }
 
 func getrusage_self() -> Double {

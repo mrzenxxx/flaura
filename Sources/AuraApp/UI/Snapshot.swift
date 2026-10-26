@@ -2,7 +2,7 @@ import AppKit
 import AuraCore
 import SwiftUI
 
-/// `Aura --snapshot <directory>` renders the panel and settings window to PNGs and exits.
+/// `Flaura --snapshot <directory>` renders the panel and settings window to PNGs and exits.
 /// Used to review the UI without clicking through the menu bar; touches no hardware.
 @MainActor
 enum Snapshot {
@@ -33,7 +33,7 @@ enum Snapshot {
         return true
     }
 
-    /// `Aura --selftest`: drives the real AppModel through hundreds of random settings changes
+    /// `Flaura --selftest`: drives the real AppModel through hundreds of random settings changes
     /// on the main actor (as the panel would) with the main run loop spinning, so debounced saves
     /// and engine updates actually run. No hardware, settings in a temporary folder. Exit 0 = pass.
     private static func selfTest() {

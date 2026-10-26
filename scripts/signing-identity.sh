@@ -1,5 +1,7 @@
 #!/bin/zsh
-# Prints the code-signing identity to use for Aura.app.
+# Prints the code-signing identity to use for Flaura.app.
+# The certificate keeps its original name: Input Monitoring is tied to it, so renaming it
+# would make macOS ask for the permission again.
 #
 # macOS remembers privacy permissions (Input Monitoring) per code identity. An ad-hoc signature
 # changes with every build, so the permission would silently stop working after each update.

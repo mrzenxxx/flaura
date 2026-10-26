@@ -94,7 +94,7 @@ private struct DeviceRow: View {
                     Text("Как у сцены").tag(EffectKind?.none)
                     Divider()
                     ForEach(EffectKind.flames + EffectKind.classics) { kind in
-                        Text(kind.isFlame ? "Aura Flame · \(kind.title)" : kind.title).tag(EffectKind?.some(kind))
+                        Text(kind.isFlame ? "Огонь · \(kind.title)" : kind.title).tag(EffectKind?.some(kind))
                     }
                 }
                 .font(.system(size: 12))
@@ -119,7 +119,7 @@ private struct GeneralTab: View {
                 }
                 Toggle("Гасить подсветку, когда монитор выключается", isOn: $model.settings.dimWhenIdle)
                     .help("На экране блокировки и форме входа подсветка горит, пока горит монитор")
-                Picker("После выхода из Aura", selection: $model.settings.shutdownBehaviour) {
+                Picker("После выхода из Flaura", selection: $model.settings.shutdownBehaviour) {
                     ForEach(ShutdownBehaviour.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
             }
@@ -157,7 +157,7 @@ private struct PermissionsTab: View {
                         .font(.system(size: 18))
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Мониторинг ввода").font(.system(size: 13, weight: .semibold))
-                        Text("Нужен только для реакций на клавиши и клики (волна, вспышка, «раздувание» огня). Aura слушает события, ничего не перехватывает и никуда не передаёт. Подсветке как таковой разрешения не нужны.")
+                        Text("Нужен только для реакций на клавиши и клики (волна, вспышка, «раздувание» огня). Flaura слушает события, ничего не перехватывает и никуда не передаёт. Подсветке как таковой разрешения не нужны.")
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)

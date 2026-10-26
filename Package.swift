@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "Aura",
+    name: "Flaura",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "Aura", targets: ["AuraApp"]),
-        .executable(name: "aura-cli", targets: ["aura-cli"]),
+        .executable(name: "Flaura", targets: ["AuraApp"]),
+        .executable(name: "flaura-cli", targets: ["aura-cli"]),
         .library(name: "AuraCore", targets: ["AuraCore"]),
         .library(name: "AuraDevices", targets: ["AuraDevices"]),
     ],

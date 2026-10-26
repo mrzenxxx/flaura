@@ -1,18 +1,18 @@
 #!/bin/zsh
-# Builds build/Aura.app from the SwiftPM package (no Xcode needed).
+# Builds build/Flaura.app from the SwiftPM package (no Xcode needed).
 #   scripts/build-app.sh            release build, stable local signature
 #   scripts/build-app.sh --adhoc    ad-hoc signature
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 echo "› swift build (release)"
-swift build -c release --product Aura
+swift build -c release --product Flaura
 BIN="$(swift build -c release --show-bin-path)"
 
-APP=build/Aura.app
+APP=build/Flaura.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN/Aura" "$APP/Contents/MacOS/Aura"
+cp "$BIN/Flaura" "$APP/Contents/MacOS/Flaura"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 
 if [[ ! -f build/AppIcon.icns || scripts/make-icon.swift -nt build/AppIcon.icns ]]; then
