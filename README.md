@@ -1,8 +1,6 @@
 # Flaura
 
-*A lightweight macOS menu bar app that drives Razer RGB lighting without Razer Synapse: live
-fire effects, a shared palette and key/mouse reactions, in sync across keyboard, mouse and mat.
-The interface is in Russian.*
+**Русский** · [English](README.en.md)
 
 Flaura — лёгкая утилита для строки меню macOS, которая управляет подсветкой Razer вместо
 Synapse. Главное в ней — живой огонь, но есть и спокойные эффекты. Все устройства рисуются с
@@ -157,3 +155,7 @@ swift build --product flaura-cli
 [OpenRGB](https://gitlab.com/CalcProgrammer1/OpenRGB) и
 [librazermacos](https://github.com/1kc/librazermacos). Порядок светодиодов Firefly V2 взят у
 SignalRGB и проверен на железе.
+
+## Лицензия
+
+[MIT](LICENSE).
